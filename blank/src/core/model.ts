@@ -1,5 +1,6 @@
 import { registry } from '../components/registry';
 import type { Props } from '../components/contract';
+import { colorsOf, COLOR_FIELDS, isColor } from '../components/colors';
 
 export const GRID = { cols: 40, rows: 30, cell: 24 } as const;
 export interface Placement {
@@ -11,8 +12,10 @@ export interface Placement {
   rowSpan: number;
   props: Props;
 }
+export const DEFAULT_APPEARANCE = { background: '#0c1520', grid: '#82c4ed' };
 export interface Document {
   schemaVersion: 1;
+  appearance: typeof DEFAULT_APPEARANCE;
   grid: typeof GRID;
   nodes: Placement[];
 }
@@ -36,7 +39,7 @@ export function createNode(type: string): Placement {
   return {
     id: crypto.randomUUID(), type, col: 0, row: 0,
     colSpan: definition.size[0], rowSpan: definition.size[1],
-    props: { ...definition.defaults },
+    props: { source: '', ...definition.defaults, ...colorsOf(definition.defaults) },
   };
 }
 
@@ -52,18 +55,28 @@ export function findSpace(node: Placement, nodes: Placement[]): Placement | unde
 export function parseDocument(raw: string): Document {
   const doc = JSON.parse(raw);
   if (doc?.schemaVersion !== 1 || doc.grid?.cols !== GRID.cols || doc.grid?.rows !== GRID.rows || doc.grid?.cell !== GRID.cell || !Array.isArray(doc.nodes) || doc.nodes.length > 300) throw new Error('存档格式不兼容');
+  const appearance = { ...DEFAULT_APPEARANCE, ...doc.appearance };
+  if ((doc.appearance !== undefined && (typeof doc.appearance !== 'object' || doc.appearance === null || Array.isArray(doc.appearance))) || !isColor(appearance.background) || !isColor(appearance.grid)) throw new Error('画布颜色无效');
   const nodes: Placement[] = [];
   const ids = new Set<string>();
   for (const node of doc.nodes) {
     if (!node || typeof node.id !== 'string' || !node.id || ids.has(node.id) ||
       typeof node.type !== 'string' || !node.props ||
       !['title', 'description', 'accent'].every(key => typeof node.props[key] === 'string' && node.props[key].length <= 2000) ||
-      !/^#[0-9a-f]{6}$/i.test(node.props.accent) || !canPlace(node, nodes)) throw new Error('存档中的组件数据无效');
+      !isColor(node.props.accent) ||
+      COLOR_FIELDS.some(([key]) => node.props[key] !== undefined && !isColor(node.props[key])) ||
+      (node.props.source !== undefined && (typeof node.props.source !== 'string' || node.props.source.length > 2000)) ||
+      !canPlace(node, nodes)) throw new Error('存档中的组件数据无效');
+    const colors = colorsOf({ ...registry.get(node.type)!.defaults, ...node.props });
+    // v0.1 的操作按钮使用强调色作为填充色，迁移时保留原来的视觉。
+    if (node.type === 'basic.button' && node.props.background === undefined) colors.background = node.props.accent;
+    if (node.type === 'basic.button' && node.props.border === undefined) colors.border = node.props.accent;
     ids.add(node.id);
     nodes.push({ id: node.id, type: node.type, col: node.col, row: node.row, colSpan: node.colSpan, rowSpan: node.rowSpan,
-      props: { title: node.props.title, description: node.props.description, accent: node.props.accent } });
+      props: { title: node.props.title, description: node.props.description,
+        ...colors, source: node.props.source ?? '' } });
   }
-  return { schemaVersion: 1, grid: { ...GRID }, nodes };
+  return { schemaVersion: 1, grid: { ...GRID }, appearance: { background: appearance.background, grid: appearance.grid }, nodes };
 }
 
 export function initialDocument(): Document {
@@ -71,5 +84,5 @@ export function initialDocument(): Document {
   const metric = { ...createNode('data.metric'), col: 16, row: 3 };
   const button = { ...createNode('basic.button'), col: 16, row: 9 };
   const input = { ...createNode('basic.input'), col: 3, row: 12 };
-  return { schemaVersion: 1, grid: { ...GRID }, nodes: [card, metric, button, input] };
+  return { schemaVersion: 1, grid: { ...GRID }, appearance: { ...DEFAULT_APPEARANCE }, nodes: [card, metric, button, input] };
 }

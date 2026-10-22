@@ -1,0 +1,63 @@
+# 素材目录与配色
+
+当前共 **137 项素材**：23 项组合/基础组件，114 项原生标签素材（覆盖 98 种实际标签，含 16 种额外 input 类型）。所有素材都使用真实 DOM，而不是画布截图。
+
+## 组合与基础组件（23 项）
+
+内容卡片、数据指标、操作按钮、文本输入，以及：
+
+- 导航：顶部导航、面包屑、分页器、标签页。
+- 表单：开关、复选框组、单选框组、选择器、搜索栏。
+- 内容：标签徽章、头像名片、信息列表、数据表格、进度卡片、骨架占位。
+- 反馈：提示消息、手风琴、文字提示、对话框。
+
+在预览模式下可操作开关、表单、标签页、分页、折叠和弹窗。标签页支持方向键 / Home / End；对话框支持 Escape、原生模态焦点管理；文字提示支持悬停、聚焦与 Escape 隐藏。
+
+## 原生标签（114 项）
+
+| 分类 | 数量 | 标签 |
+| --- | ---: | --- |
+| 文本排版 | 41 | h1–h6、p、span、strong、em、b、i、small、mark、del、ins、sub、sup、code、pre、kbd、samp、blockquote、q、abbr、cite、time、address、s、u、dfn、bdi、bdo、a、br、hr、data、wbr、ruby、rt、rp |
+| 结构布局 | 20 | div、section、article、header、footer、main、aside、nav、search、hgroup、menu、dialog、ul、ol、li、dl、dt、dd、details、summary |
+| 原生表单 | 28 | input、textarea、select、option、optgroup、datalist、label、button、form、fieldset、legend、output，以及下面的 input 类型 |
+| 媒体图形 | 13 | img、figure、figcaption、picture、video、audio、map、area、object、embed、iframe、svg、canvas |
+| 原生数据 | 12 | table、thead、tbody、tfoot、tr、th、td、caption、colgroup、col、progress、meter |
+
+额外 input 类型：number、password、email、search、date、datetime-local、time、month、week、url、tel、file、color、range、checkbox、radio。普通文本 input 单列为素材。
+
+标签名会直接显示在素材卡片与属性面板中；搜索支持中文名称、类型 ID 和 HTML 标签名，例如 `h1`、`table`、`input-date`。
+
+### 标签边界
+
+- 表格单元格、列表项、下拉选项等需要父级的元素，会使用合法的父级结构承载，不创建孤立的无效 HTML。
+- div / section 等容器目前只是独立网格素材，**暂不支持嵌套拖入**。
+- head、meta、title、link、base、script、style、template、slot、隐藏 input 等非独立可视内容，不作为可拖拽素材；不支持执行任意 HTML / JavaScript。
+- source / track 属于媒体内部配置，不作为单独占据网格的组件；picture 示例内部使用 source。
+- object / embed 固定使用本地可信 SVG 示例；iframe 使用禁用脚本的 sandbox 与静态 srcdoc，不开放任意页面嵌入。
+- 图片、音频、视频可在属性面板填写 HTTP(S) 地址，超链接支持 HTTP(S) / mailto / tel；拒绝 javascript、file 等协议。
+- 外部媒体是否加载成功取决于服务器、网络及浏览器策略；视频字幕等生产内容要求仍需自行补充。
+
+## 颜色编辑
+
+选中组件后，右侧可以分别修改：
+
+1. 背景色。
+2. 文字色。
+3. 边框色。
+4. 强调色（链接、选中项、开关、进度等）。
+
+支持原生拾色器、`#RRGGBB` 输入、冰川蓝 / 薄荷绿 / 暖砂橙 / 浅色纸四套预设、恢复默认。拾色过程实时预览，确认后只写入一次历史记录。文字与背景显示对比度提示；提示不阻止用户选择低对比颜色，也不代表所有内部元素都通过完整无障碍认证。原生表单控件会按组件背景切换 light / dark color-scheme。
+
+无论是否选中组件，属性面板下方都能修改画布背景与网格线色。网格线使用用户选择颜色的低透明度版本，保持内容优先。组件图像本身不进行色相替换，修改背景仅影响图片外部承载区域。
+
+所有颜色都支持撤销、重做和本地保存。旧版记录会自动补齐缺失颜色，不清空已有布局；旧按钮以强调色填充的视觉也会保留。
+
+## 目录扩展
+
+- `components/native/`：按文本、结构、表单、媒体、数据分类定义原生素材，复用 `factory.ts` 的隔离渲染与清理逻辑。
+- `components/common/`：常见组合组件，交互监听器通过 AbortController 统一销毁。
+- `components/colors.ts`：共享颜色默认值、预设、格式校验和对比度算法。
+- `editor/color-controls.ts`：通用拾色与 HEX 控件。
+- `editor/inspector.ts`：属性与颜色面板，与组件库浏览分离。
+
+增加素材时实现组件协议并加入注册表即可；工作区拖放与碰撞逻辑无需改动。

@@ -1,6 +1,9 @@
 import { registry } from '../components/registry';
 import { canPlace, createNode, findSpace, GRID, type Placement } from '../core/model';
 import { Store } from '../core/store';
+import type { Props } from '../components/contract';
+import { isColor } from '../components/colors';
+import type { DEFAULT_APPEARANCE } from '../core/model';
 
 export const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 let toastTimer: ReturnType<typeof setTimeout>;
@@ -21,6 +24,7 @@ export class Editor {
   readonly canvas = $('canvas');
   readonly ghost = $('ghost');
   private mounted = new Map<string, Mounted>();
+  private colorPreviewId: string | null = null;
   onSelection = () => {};
 
   constructor(readonly store: Store) {
@@ -34,6 +38,12 @@ export class Editor {
 
   get node() { return this.store.doc.nodes.find(node => node.id === this.selected); }
   select(id: string | null) {
+    if (this.colorPreviewId) {
+      const node = this.store.doc.nodes.find(node => node.id === this.colorPreviewId);
+      if (node) this.mounted.get(node.id)?.instance.update(node.props);
+      this.colorPreviewId = null;
+    }
+    this.applyAppearance(this.store.doc.appearance);
     this.selected = id;
     this.renderSelection();
     this.onSelection();
@@ -53,7 +63,17 @@ export class Editor {
       : '未选择组件';
   }
 
+  previewColors(id: string, props: Props) {
+    this.colorPreviewId = id;
+    this.mounted.get(id)?.instance.update(props);
+  }
+  applyAppearance(appearance: typeof DEFAULT_APPEARANCE) {
+    this.canvas.style.setProperty('--canvas-background', appearance.background);
+    this.canvas.style.setProperty('--canvas-grid', appearance.grid);
+  }
   render() {
+    this.colorPreviewId = null;
+    this.applyAppearance(this.store.doc.appearance);
     const ids = new Set(this.store.doc.nodes.map(node => node.id));
     for (const [id, mounted] of this.mounted) {
       if (!ids.has(id)) { mounted.instance.destroy(); mounted.element.remove(); this.mounted.delete(id); }
@@ -66,7 +86,7 @@ export class Editor {
         const element = document.createElement('div');
         element.className = 'node';
         element.dataset.id = node.id;
-        element.tabIndex = 0;
+        element.tabIndex = this.preview ? -1 : 0;
         element.setAttribute('role', 'group');
         element.setAttribute('aria-label', `${definition.title}，按方向键移动，右侧面板可调整尺寸`);
         const label = document.createElement('span');
@@ -95,6 +115,12 @@ export class Editor {
       mounted.element.style.height = `${node.rowSpan * GRID.cell}px`;
       mounted.element.querySelector('.node-label')!.textContent = `${definition.title} · ${node.colSpan} × ${node.rowSpan}`;
       mounted.instance.update(node.props);
+      // 小尺寸组件仍可用键盘滚动内部内容，不改变已有交互控件的 tabindex。
+      mounted.element.querySelector('.component-host')!.shadowRoot!.querySelectorAll<HTMLElement>('.box, .frame, article').forEach(region => {
+        const scrollable = region.scrollHeight > region.clientHeight || region.scrollWidth > region.clientWidth;
+        if (scrollable && !region.hasAttribute('tabindex')) { region.tabIndex = 0; region.dataset.scrollFocus = 'true'; }
+        else if (!scrollable && region.dataset.scrollFocus) { region.removeAttribute('tabindex'); delete region.dataset.scrollFocus; }
+      });
     }
     $('empty-state').hidden = this.store.doc.nodes.length > 0;
     $('node-count').textContent = `${this.store.doc.nodes.length} 个组件`;
@@ -115,6 +141,7 @@ export class Editor {
   update(node: Placement) {
     if (this.preview) return false;
     if (!canPlace(node, this.store.doc.nodes)) { toast('无法放置：请检查重叠、边界和最小尺寸'); return false; }
+    if (['accent', 'background', 'text', 'border'].some(key => !isColor(node.props[key as keyof Props]))) { toast('请输入有效的六位十六进制颜色'); return false; }
     this.store.commit({ ...this.store.doc, nodes: this.store.doc.nodes.map(other => other.id === node.id ? node : other) });
     return true;
   }

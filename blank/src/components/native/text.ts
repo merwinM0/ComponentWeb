@@ -1,0 +1,32 @@
+import { native, safeSource } from './factory';
+
+export const textElements = [
+  ...[1, 2, 3, 4, 5, 6].map(level => native({ tag: `h${level}`, title: `${level} 级标题`, category: '文本排版', text: `标题让内容更有层次 · H${level}`, size: [14, level < 3 ? 4 : 3] })),
+  ...[
+    ['p', '段落', '每个清晰的界面，都从一段有意义的内容开始。'],
+    ['span', '行内文本', '轻量的行内文本'], ['strong', '重要强调', '让重要信息被看见'],
+    ['em', '语气强调', '用细微变化表达语气'], ['b', '粗体文本', '粗体文本示例'],
+    ['i', '斜体文本', 'Design with intention.'], ['small', '辅助文字', '最后更新于今天 · 仅供参考'],
+    ['mark', '高亮标记', '值得关注的内容'], ['del', '删除文本', '旧版本内容'],
+    ['ins', '新增文本', '新加入的内容'], ['sub', '下标', '下标文本'], ['sup', '上标', '上标文本'],
+    ['code', '行内代码', 'const idea = createComponent();'], ['pre', '预格式文本', '布局 = 结构 + 内容\n设计 = 细节 + 秩序'],
+    ['kbd', '键盘按键', '⌘ + K'], ['samp', '程序输出', '构建完成 · 0 个错误'],
+    ['blockquote', '块引用', '设计不是装饰，而是让事物更好地运作。'], ['q', '行内引用', '少一点噪声，多一点清晰。'],
+    ['abbr', '缩写', 'HTML'], ['cite', '作品引用', '设计中的设计'], ['time', '时间', '2026 年 6 月 18 日'],
+    ['address', '联系地址', '设计团队 · hello@example.com'], ['s', '失效文本', '原价 ¥199'],
+    ['u', '下划线', '待校对的内容'], ['dfn', '术语定义', '网格吸附'], ['bdi', '双向隔离', 'ComponentWeb · مرحبا'],
+    ['bdo', '文字方向', '从右向左的文本'],
+  ].map(([tag, title, text]) => native({ tag, title, text, category: '文本排版',
+    html: tag === 'bdo' ? '<bdo dir="rtl" data-title></bdo>' : undefined,
+    size: [12, ['pre', 'blockquote'].includes(tag) ? 5 : 3] })),
+  native({ tag: 'a', title: '超链接', category: '文本排版', text: '探索 Bun 官方文档 ↗', sourceLabel: '链接地址（https / http / mailto / tel）',
+    html: '<a target="_blank" rel="noopener noreferrer" data-title></a>',
+    render(root, props) { const a = root.querySelector('a')!; const url = safeSource(props.source); if (url) a.href = url; else a.removeAttribute('href'); },
+  }),
+  native({ tag: 'br', title: '换行', category: '文本排版', html: '<span data-title></span><br><span data-description></span>' }),
+  native({ tag: 'hr', title: '分隔线', category: '文本排版', html: '<hr aria-label="内容分隔线">', size: [14, 2], min: [3, 2] }),
+  native({ tag: 'data', title: '机器可读数据', category: '文本排版', html: '<data value="component-001" data-title></data>', text: '组件编号 CW-001' }),
+  native({ tag: 'wbr', title: '可选换行点', category: '文本排版', html: '<span>Component<wbr>Web<wbr>Workspace</span>', size: [8, 3] }),
+  ...['rt', 'rp'].map(tag => native({ tag, title: tag === 'rt' ? '注音说明' : '注音括号', category: '文本排版', html: '<ruby><span data-title></span><rp>(</rp><rt data-description></rt><rp>)</rp></ruby>', text: '布局', description: 'bù jú' })),
+  native({ tag: 'ruby', title: '注音文本', category: '文本排版', html: '<ruby><span data-title></span><rt data-description></rt></ruby>', text: '组件', description: 'zǔ jiàn' }),
+];
