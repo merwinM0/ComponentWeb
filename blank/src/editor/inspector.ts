@@ -3,6 +3,8 @@ import { colorsOf, COLOR_FIELDS, palettes } from '../components/colors';
 import { DEFAULT_APPEARANCE, GRID } from '../core/model';
 import { $, Editor } from './editor';
 import { colorControls } from './color-controls';
+import { shapeControls } from './shape-controls';
+import { shapeOf } from '../components/shape';
 
 function section(title: string, english: string) {
   const heading = document.createElement('div');
@@ -57,6 +59,9 @@ export function setupInspector(editor: Editor) {
         if (definition.sourceLabel) updated.props.source = String(data.get('source'));
         if (!editor.update(updated)) render();
       });
+      container.append(section('圆角与边框', 'SHAPE'));
+      container.append(shapeControls(shapeOf(node.props), editor.preview,
+        values => editor.update({ ...node, props: { ...node.props, ...values } })));
       container.append(section('组件配色', 'COLORS'));
       const applyColors = (values: Record<string, string>) => editor.update({ ...node, props: { ...node.props, ...values } });
       container.append(colorControls({ prefix: 'prop', fields: COLOR_FIELDS, values: colorsOf(node.props), disabled: editor.preview,

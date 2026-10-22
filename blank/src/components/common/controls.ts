@@ -3,7 +3,7 @@ import { common } from './factory';
 export const toggle = common({
   name: 'switch', title: '开关', icon: '◐', tags: ['input', 'label'], size: [12, 4], min: [7, 3],
   html: '<div class="box row"><label class="row"><input type="checkbox" role="switch" checked><span class="track" aria-hidden="true"></span><span data-title></span></label></div>',
-  css: 'label{cursor:pointer;position:relative}input{position:absolute;opacity:0;width:38px;height:22px;margin:0}.track{pointer-events:none;width:38px;height:22px;display:block;border-radius:12px;background:var(--border);position:relative}.track:after{content:"";position:absolute;width:14px;height:14px;left:4px;top:4px;border-radius:50%;background:var(--text);transition:transform .15s}input:checked+.track{background:var(--accent)}input:checked+.track:after{transform:translateX(16px);background:var(--surface)}input:focus-visible+.track{outline:2px solid var(--accent);outline-offset:3px}@media(prefers-reduced-motion:reduce){.track:after{transition:none}}',
+  css: 'label{cursor:pointer;position:relative}input{position:absolute;opacity:0;width:38px;height:22px;margin:0}.track{pointer-events:none;width:38px;height:22px;display:block;border-radius:var(--radius);background:var(--border);position:relative}.track:after{content:"";position:absolute;width:14px;height:14px;left:4px;top:4px;border-radius:var(--radius);background:var(--text);transition:transform .15s}input:checked+.track{background:var(--accent)}input:checked+.track:after{transform:translateX(16px);background:var(--surface)}input:focus-visible+.track{outline:2px solid var(--accent);outline-offset:3px}@media(prefers-reduced-motion:reduce){.track:after{transition:none}}',
 });
 
 export const checkbox = common({

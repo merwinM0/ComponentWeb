@@ -1,10 +1,10 @@
 import { shadowComponent, type ComponentDefinition, type Props } from '../contract';
 
 export const commonCSS = `
-  .box{height:100%;overflow:auto;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);padding:18px;font-size:13px;line-height:1.6}
+  .box{height:100%;overflow:auto;border:var(--border-width) var(--border-style) var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);padding:18px;font-size:13px;line-height:1.6}
   h3,p{margin:0}h3{font-size:16px;font-weight:500}p{color:var(--muted);font-size:12px}button,input,select{font:inherit}
-  button{padding:8px 12px;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:4px;cursor:pointer}button:hover{border-color:var(--accent)}button:disabled{opacity:.4;cursor:not-allowed}
-  input,select{min-width:0;max-width:100%;padding:9px 12px;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:4px}
+  button{padding:8px 12px;border:var(--border-width) var(--border-style) var(--border);background:var(--surface);color:var(--text);border-radius:var(--radius);cursor:pointer}button:hover{border-color:var(--accent)}button:disabled{opacity:.4;cursor:not-allowed}
+  input,select{min-width:0;max-width:100%;padding:9px 12px;border:var(--border-width) var(--border-style) var(--border);background:var(--surface);color:var(--text);border-radius:var(--radius)}
   .row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.stack{display:flex;flex-direction:column;gap:12px}.active{color:var(--accent);border-color:var(--accent)}
   .eyebrow{color:var(--accent);font-size:10px;letter-spacing:2px}.subtle{color:var(--muted);font-size:11px}
 `;

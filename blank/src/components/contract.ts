@@ -1,6 +1,7 @@
 import { colorsOf, contrastRatio } from './colors';
+import { shapeOf, type ShapeSettings } from './shape';
 
-export interface Props {
+export interface Props extends Partial<ShapeSettings> {
   title: string;
   description: string;
   accent: string;
@@ -38,6 +39,10 @@ export function shadowComponent(host: HTMLElement, css: string, html: string, re
     host.style.setProperty('--surface', colors.background);
     host.style.setProperty('--text', colors.text);
     host.style.setProperty('--border', colors.border);
+    const shape = shapeOf(next);
+    host.style.setProperty('--radius', `${shape.radius}px`);
+    host.style.setProperty('--border-width', `${shape.borderWidth}px`);
+    host.style.setProperty('--border-style', shape.borderStyle);
     host.style.colorScheme = contrastRatio('#000000', colors.background) > contrastRatio('#ffffff', colors.background) ? 'light' : 'dark';
     render(root, next);
   };

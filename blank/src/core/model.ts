@@ -1,6 +1,7 @@
 import { registry } from '../components/registry';
 import type { Props } from '../components/contract';
 import { colorsOf, COLOR_FIELDS, isColor } from '../components/colors';
+import { isValidShape, shapeOf } from '../components/shape';
 
 export const GRID = { cols: 40, rows: 30, cell: 24 } as const;
 export interface Placement {
@@ -39,7 +40,7 @@ export function createNode(type: string): Placement {
   return {
     id: crypto.randomUUID(), type, col: 0, row: 0,
     colSpan: definition.size[0], rowSpan: definition.size[1],
-    props: { source: '', ...definition.defaults, ...colorsOf(definition.defaults) },
+    props: { source: '', ...definition.defaults, ...colorsOf(definition.defaults), ...shapeOf(definition.defaults) },
   };
 }
 
@@ -63,7 +64,7 @@ export function parseDocument(raw: string): Document {
     if (!node || typeof node.id !== 'string' || !node.id || ids.has(node.id) ||
       typeof node.type !== 'string' || !node.props ||
       !['title', 'description', 'accent'].every(key => typeof node.props[key] === 'string' && node.props[key].length <= 2000) ||
-      !isColor(node.props.accent) ||
+      !isColor(node.props.accent) || !isValidShape(node.props) ||
       COLOR_FIELDS.some(([key]) => node.props[key] !== undefined && !isColor(node.props[key])) ||
       (node.props.source !== undefined && (typeof node.props.source !== 'string' || node.props.source.length > 2000)) ||
       !canPlace(node, nodes)) throw new Error('存档中的组件数据无效');
@@ -74,7 +75,7 @@ export function parseDocument(raw: string): Document {
     ids.add(node.id);
     nodes.push({ id: node.id, type: node.type, col: node.col, row: node.row, colSpan: node.colSpan, rowSpan: node.rowSpan,
       props: { title: node.props.title, description: node.props.description,
-        ...colors, source: node.props.source ?? '' } });
+        ...colors, ...shapeOf(node.props), source: node.props.source ?? '' } });
   }
   return { schemaVersion: 1, grid: { ...GRID }, appearance: { background: appearance.background, grid: appearance.grid }, nodes };
 }

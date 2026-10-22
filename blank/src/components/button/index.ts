@@ -6,7 +6,7 @@ export const button: ComponentDefinition = {
   defaults: { title: '开始探索', description: '操作已触发', accent: '#8bd5ff', background: '#8bd5ff', text: '#07131c', border: '#8bd5ff' },
   mount(host, props) {
     const instance = shadowComponent(host,
-      'button{width:100%;height:100%;border:1px solid var(--border);border-radius:5px;background:var(--surface);color:var(--text);font:inherit;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:0 18px}button:focus-visible{outline:2px solid var(--text);outline-offset:-5px}',
+      'button{width:100%;height:100%;border:var(--border-width) var(--border-style) var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);font:inherit;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:0 18px}button:focus-visible{outline:2px solid var(--text);outline-offset:-5px}',
       '<button type="button"><span></span><b aria-hidden="true">↗</b></button>',
       (root, p) => { root.querySelector('span')!.textContent = p.title; }, props);
     const target = host.shadowRoot!.querySelector('button')!;

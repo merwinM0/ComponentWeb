@@ -4,6 +4,7 @@ import { components } from '../blank/src/components/registry';
 import { initialDocument, type Document } from '../blank/src/core/model';
 import { STORAGE_KEY } from '../blank/src/core/store';
 import { checkLibraryScroll } from './library-scroll-check';
+import { checkShapeSettings } from './shape-check';
 
 const port = 3107;
 const url = `http://127.0.0.1:${port}`;
@@ -35,6 +36,7 @@ try {
   await page.locator('.node').first().waitFor();
   assert(await page.locator('.node').count() === 4, '初始布局');
   await checkLibraryScroll(page);
+  await checkShapeSettings(page);
   await audit(page, '初始工作台');
   await page.getByRole('button', { name: 'HTML 标签', exact: true }).click();
   assert(await page.locator('.component-tile').count() === components.filter(item => item.type.startsWith('html.')).length, 'HTML 分类计数');
@@ -87,6 +89,16 @@ try {
       assert(await page.locator(`.component-host ${tag}`).count() > 0, `${definition.type} 包含真实 ${tag} 元素`);
     }
     await page.locator('.node').click();
+    const surface = page.locator('.component-host').locator('.frame, .box, article, button, input').first();
+    assert(await surface.evaluate(element => getComputedStyle(element).borderTopLeftRadius) === '0px', `${definition.type} 默认直角`);
+    if (['ui.table', 'html.input'].includes(definition.type)) {
+      await page.locator('#prop-radius').fill('8'); await page.locator('#prop-radius').press('Tab');
+      await page.locator('#prop-borderWidth').fill('2'); await page.locator('#prop-borderWidth').press('Tab');
+      await page.locator('#prop-borderStyle').selectOption('dotted');
+      assert(await surface.evaluate(element => getComputedStyle(element).borderTopLeftRadius) === '8px', `${definition.type} 圆角生效`);
+      assert(await surface.evaluate(element => getComputedStyle(element).borderTopStyle) === 'dotted', `${definition.type} 边框生效`);
+      await page.locator('#reset-shape').click();
+    }
     await page.locator('#preview').click();
     if (!definition.type.startsWith('html.') || ['html.form', 'html.input', 'html.img', 'html.video', 'html.svg', 'html.table', 'html.dialog'].includes(definition.type)) {
       await audit(page, definition.type); audited++;

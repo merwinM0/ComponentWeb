@@ -13,7 +13,7 @@ export const structureElements = [
   })),
   native({ tag: 'hgroup', title: '标题组', category: '结构布局', size: [14, 5], html: '<hgroup><h2 data-title></h2><p data-description></p></hgroup>' }),
   native({ tag: 'menu', title: '操作菜单', category: '结构布局', size: [12, 5], html: '<menu><li><button type="button" data-title></button></li><li><button type="button">查看详情</button></li></menu>', css: 'menu{display:flex;list-style:none;margin:0;padding:0;gap:8px;flex-wrap:wrap}' }),
-  native({ tag: 'dialog', title: '原生对话区域', category: '结构布局', size: [14, 7], min: [8, 5], html: '<dialog open aria-labelledby="native-dialog-title"><h3 id="native-dialog-title" data-title></h3><p data-description></p></dialog>', css: 'dialog{position:relative;inset:auto;width:100%;margin:0;border:1px solid var(--border);background:var(--surface);color:var(--text);padding:16px}dialog p{margin-top:12px}' }),
+  native({ tag: 'dialog', title: '原生对话区域', category: '结构布局', size: [14, 7], min: [8, 5], html: '<dialog open aria-labelledby="native-dialog-title"><h3 id="native-dialog-title" data-title></h3><p data-description></p></dialog>', css: 'dialog{position:relative;inset:auto;width:100%;margin:0;border:var(--border-width) var(--border-style) var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);padding:16px}dialog p{margin-top:12px}' }),
   native({ tag: 'ul', title: '无序列表', category: '结构布局', size: [10, 6], html: '<ul><li data-title></li><li data-description></li><li>把灵感整理成清晰的界面</li></ul>' }),
   native({ tag: 'ol', title: '有序列表', category: '结构布局', size: [10, 6], html: '<ol><li data-title></li><li data-description></li><li>预览并完善你的设计</li></ol>' }),
   native({ tag: 'li', title: '列表项', category: '结构布局', html: '<ul><li data-title></li></ul>' }),

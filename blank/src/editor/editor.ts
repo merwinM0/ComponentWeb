@@ -3,6 +3,7 @@ import { canPlace, createNode, findSpace, GRID, type Placement } from '../core/m
 import { Store } from '../core/store';
 import type { Props } from '../components/contract';
 import { isColor } from '../components/colors';
+import { isValidShape, shapeOf } from '../components/shape';
 import type { DEFAULT_APPEARANCE } from '../core/model';
 
 export const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -113,6 +114,7 @@ export class Editor {
       mounted.element.style.top = `${node.row * GRID.cell}px`;
       mounted.element.style.width = `${node.colSpan * GRID.cell}px`;
       mounted.element.style.height = `${node.rowSpan * GRID.cell}px`;
+      mounted.element.style.borderRadius = `${shapeOf(node.props).radius}px`;
       mounted.element.querySelector('.node-label')!.textContent = `${definition.title} · ${node.colSpan} × ${node.rowSpan}`;
       mounted.instance.update(node.props);
       // 小尺寸组件仍可用键盘滚动内部内容，不改变已有交互控件的 tabindex。
@@ -142,6 +144,7 @@ export class Editor {
     if (this.preview) return false;
     if (!canPlace(node, this.store.doc.nodes)) { toast('无法放置：请检查重叠、边界和最小尺寸'); return false; }
     if (['accent', 'background', 'text', 'border'].some(key => !isColor(node.props[key as keyof Props]))) { toast('请输入有效的六位十六进制颜色'); return false; }
+    if (!isValidShape(node.props)) { toast('圆角或边框设置无效，请检查范围'); return false; }
     this.store.commit({ ...this.store.doc, nodes: this.store.doc.nodes.map(other => other.id === node.id ? node : other) });
     return true;
   }
