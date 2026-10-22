@@ -1,15 +1,17 @@
 /* 素材目录与配色面板：延续原生版的深色、紧凑编辑器语言。 */
 .library .panel-details { min-height: 0; display: flex; flex-direction: column; }
 .library .panel-details:not([open]) > :not(summary) { display: none; }
-.library .panel-details > summary { flex-shrink: 0; }
+/* details 的内容有独立布局盒，必须将其也纳入高度约束链。 */
+.library .panel-details::details-content { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.library .panel-details > :not(.component-list) { flex-shrink: 0; }
 .library .panel-intro { margin-bottom: 18px; }
 .category-tabs { margin: 12px 0; flex-shrink: 0; }
 .category-tabs button { padding: 7px 10px; white-space: nowrap; }
 .category-select { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 11px; }
 .category-select select { flex: 1; padding: 7px 8px; font-size: 11px; }
 .library-results { margin: 12px 0; font-size: 10px; color: var(--muted); }
-.library .component-list { min-height: 0; overflow-y: auto; padding: 2px 4px 4px 0; scrollbar-width: thin; scrollbar-color: #344b60 transparent; }
-.library .component-tile { flex-shrink: 0; }
+.library .component-list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; padding: 2px 4px 4px 0; scrollbar-width: thin; scrollbar-color: #344b60 transparent; }
+.library .component-tile { flex-shrink: 0; touch-action: pan-y; }
 .library .library-note { padding-top: 18px; flex-shrink: 0; }
 .library .search { flex-shrink: 0; }
 .library .tile-preview { height: 64px; gap: 10px; padding: 10px; }
@@ -50,7 +52,8 @@
 .inspector .field.full { margin-top: 12px; }
 .inspector textarea { min-height: 60px; }
 @media (min-width: 801px) {
-  .library > .panel-details { flex: 1; overflow: hidden; }
+  /* 不支持 ::details-content 的浏览器回退为整个面板内容可滚动。 */
+  .library > .panel-details { flex: 1; overflow-y: auto; }
   .library-footer { flex-shrink: 0; }
 }
 @media (max-width: 1150px) {

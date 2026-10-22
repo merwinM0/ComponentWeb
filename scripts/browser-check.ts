@@ -3,6 +3,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { components } from '../blank/src/components/registry';
 import { initialDocument, type Document } from '../blank/src/core/model';
 import { STORAGE_KEY } from '../blank/src/core/store';
+import { checkLibraryScroll } from './library-scroll-check';
 
 const port = 3107;
 const url = `http://127.0.0.1:${port}`;
@@ -33,6 +34,7 @@ try {
   await page.goto(url);
   await page.locator('.node').first().waitFor();
   assert(await page.locator('.node').count() === 4, '初始布局');
+  await checkLibraryScroll(page);
   await audit(page, '初始工作台');
   await page.getByRole('button', { name: 'HTML 标签', exact: true }).click();
   assert(await page.locator('.component-tile').count() === components.filter(item => item.type.startsWith('html.')).length, 'HTML 分类计数');
