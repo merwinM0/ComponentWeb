@@ -10,19 +10,23 @@ export function setupCombinationDialogs(editor: Editor, combinations: Combinatio
   const input = dialog.querySelector<HTMLInputElement>('input')!;
   const error = dialog.querySelector<HTMLElement>('[role=alert]')!;
   let renameId: string | null = null;
+  let updateId: string | null = null;
+  let onSaved: (() => void) | undefined;
   let snapshot: ReturnType<typeof captureCombination> | null = null;
   dialog.querySelector('[data-cancel]')!.addEventListener('click', () => dialog.close());
   form.addEventListener('submit', event => {
     event.preventDefault(); if (!form.reportValidity()) return;
     try {
-      if (renameId) combinations.rename(renameId, input.value); else if (snapshot) combinations.save(input.value, snapshot);
-      dialog.close(); $<HTMLInputElement>('search').value = ''; document.querySelector<HTMLButtonElement>('[data-kind="我的组合"]')?.click();
+      if (renameId) combinations.rename(renameId, input.value);
+      else if (snapshot && updateId) combinations.update(updateId, input.value, snapshot);
+      else if (snapshot) combinations.save(input.value, snapshot);
+      dialog.close(); const callback = onSaved; onSaved = undefined; callback?.(); $<HTMLInputElement>('search').value = ''; document.querySelector<HTMLButtonElement>('[data-kind="我的组合"]')?.click();
       document.querySelector<HTMLButtonElement>('[data-kind="我的组合"]')?.focus(); toast(renameId ? '组合已重命名' : '已保存到我的组合');
     } catch (cause) { error.textContent = (cause as Error).message; }
   });
   editor.onSaveCombination = () => {
     try {
-      snapshot = captureCombination(editor.store.doc, editor.selectedIds); renameId = null;
+      snapshot = captureCombination(editor.store.doc, editor.selectedIds); renameId = null; updateId = null; onSaved = undefined;
       $('combination-dialog-title').textContent = '保存到我的组合'; input.value = (editor.node?.props.title || `我的组合 ${combinations.items.length + 1}`).slice(0, 60); error.textContent = ''; dialog.showModal(); input.select();
     } catch (cause) { toast((cause as Error).message); }
   };
@@ -36,9 +40,13 @@ export function setupCombinationDialogs(editor: Editor, combinations: Combinatio
     catch (cause) { confirm.querySelector('[role=alert]')!.textContent = (cause as Error).message; }
   });
   return {
+    saveDocument(document: ReturnType<typeof captureCombination>, suggestedName: string, options: { id?: string; onSaved?: () => void } = {}) {
+      snapshot = structuredClone(document); renameId = null; updateId = options.id ?? null; onSaved = options.onSaved;
+      $('combination-dialog-title').textContent = updateId ? '更新我的组合' : '保存到我的组合'; input.value = suggestedName.slice(0, 60); error.textContent = ''; dialog.showModal(); input.select();
+    },
     rename(id: string) {
       const item = combinations.items.find(item => item.id === id); if (!item) return;
-      renameId = id; snapshot = null; $('combination-dialog-title').textContent = '重命名组合'; input.value = item.name; error.textContent = ''; dialog.showModal(); input.select();
+      renameId = id; snapshot = null; updateId = null; onSaved = undefined; $('combination-dialog-title').textContent = '重命名组合'; input.value = item.name; error.textContent = ''; dialog.showModal(); input.select();
     },
     remove(id: string) {
       const item = combinations.items.find(item => item.id === id); if (!item) return;

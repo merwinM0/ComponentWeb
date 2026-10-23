@@ -35,6 +35,7 @@ export function setupGestures(editor: Editor, combinations: Combinations) {
     const node = editor.store.doc.nodes.find(node => node.id === element?.dataset.id);
     const background = event.target === editor.canvas || (node && isContainer(node) && event.composedPath().some(part => part instanceof HTMLElement && part === editor.renderer.content(node.id)) && element?.dataset.id === node.id);
     if (!tile && !element && !background) return;
+    if (!tile && !background && node?.id === editor.scopeRootId) { event.preventDefault(); editor.select(node.id); return; }
     if (!tile && !background && node && event.shiftKey) { event.preventDefault(); editor.select(node.id, true); return; }
     const p = point(event); const oldSelection = new Set(editor.selectedIds);
     let roots: Placement[] = [], added: Placement[] = [];
@@ -103,7 +104,8 @@ export function setupGestures(editor: Editor, combinations: Combinations) {
     }
     const viewport = document.getElementById('viewport')!.getBoundingClientRect();
     const inside = event.clientX >= viewport.left && event.clientX <= viewport.right && event.clientY >= viewport.top && event.clientY <= viewport.bottom;
-    s.candidate = nodes; s.valid = inside && !validateTree(nodes);
+    const inPage = p.x >= 0 && p.y >= 0 && p.x * GRID.cell <= editor.pageSize.width && p.y * GRID.cell <= editor.pageSize.height;
+    s.candidate = nodes; s.valid = inside && inPage && !editor.pageError(nodes) && !validateTree(nodes);
     const preview = bounds([...updates.values()].map(node => ({ ...node, col: node.col + origin.col, row: node.row + origin.row })));
     if (parent && parent.layout?.mode !== 'free') { preview.col = p.x - preview.colSpan / 2; preview.row = p.y - preview.rowSpan / 2; }
     Object.assign(editor.ghost.style, { left: `${preview.col * GRID.cell}px`, top: `${preview.row * GRID.cell}px`, width: `${preview.colSpan * GRID.cell}px`, height: `${preview.rowSpan * GRID.cell}px` });

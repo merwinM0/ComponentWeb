@@ -54,6 +54,14 @@ export class Combinations {
     if (topSelection(snapshot.nodes, snapshot.nodes.map(node => node.id)).length !== 1) throw new Error('组合根组件无效');
     this.replace([...this.items, { id: crypto.randomUUID(), name: clean, createdAt: new Date().toISOString(), document: snapshot }]);
   }
+  update(id: string, name: string, document: Document) {
+    const clean = name.trim();
+    if (!clean || clean.length > 60) throw new Error('组合名称需为 1～60 个字符');
+    if (!this.items.some(item => item.id === id)) throw new Error('原组合已被删除，请另存为新组合');
+    const snapshot = parseDocument(JSON.stringify(document));
+    if (topSelection(snapshot.nodes, snapshot.nodes.map(node => node.id)).length !== 1) throw new Error('组合根组件无效');
+    this.replace(this.items.map(item => item.id === id ? { ...item, name: clean, document: snapshot } : item));
+  }
   rename(id: string, name: string) {
     const clean = name.trim();
     if (!clean || clean.length > 60) throw new Error('组合名称需为 1～60 个字符');

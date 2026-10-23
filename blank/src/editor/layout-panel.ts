@@ -8,9 +8,9 @@ export function layoutPanel(editor: Editor) {
   const node = editor.node; if (!node) return container;
   const excluded = descendants(editor.store.doc.nodes, [node.id]);
   const label = document.createElement('label'); label.className = 'field full'; label.textContent = '父容器';
-  const parent = document.createElement('select'); parent.id = 'prop-parent'; parent.disabled = editor.preview;
-  parent.append(new Option('工作区（根级）', ''));
-  for (const other of editor.store.doc.nodes) if (isContainer(other) && !excluded.has(other.id)) parent.append(new Option(`${other.props.title || '容器'} · ${other.id.slice(0, 5)}`, other.id));
+  const parent = document.createElement('select'); parent.id = 'prop-parent'; parent.disabled = editor.preview || node.id === editor.scopeRootId;
+  parent.append(new Option(editor.scopeRootId ? '当前设计页（根级）' : '工作区（根级）', node.id === editor.scopeRootId ? '' : editor.scopeRootId ?? ''));
+  for (const other of editor.store.doc.nodes) if (isContainer(other) && other.id !== editor.scopeRootId && !excluded.has(other.id)) parent.append(new Option(`${other.props.title || '容器'} · ${other.id.slice(0, 5)}`, other.id));
   parent.value = node.parentId ?? ''; parent.addEventListener('change', () => { editor.reparent(parent.value || null); editor.onSelection(); }); label.append(parent); container.append(label);
   if (!isContainer(node)) return container;
   const form = document.createElement('form'); form.className = 'layout-form';
@@ -43,6 +43,6 @@ export function layoutPanel(editor: Editor) {
   const select = document.createElement('select'); select.setAttribute('aria-label', '要放入容器的组件');
   for (const item of components.filter(item => ['basic.button', 'content.card', 'basic.input', 'layout.container'].includes(item.type))) select.append(new Option(item.title, item.type));
   const button = document.createElement('button'); button.type = 'button'; button.textContent = '添加到此容器'; button.disabled = editor.preview;
-  button.addEventListener('click', () => editor.add(select.value, undefined, node.id)); add.append(select, button); container.append(add);
+  button.addEventListener('click', () => select.value === 'layout.container' ? editor.onNewComponent(node.id) : editor.add(select.value, undefined, node.id)); add.append(select, button); container.append(add);
   return container;
 }

@@ -1,6 +1,6 @@
 import { createNode, findSpace, GRID, parseDocument, type Document, type Placement } from '../core/model';
 import { CANVAS } from '../core/grid';
-import { Store } from '../core/store';
+import type { StorePort } from '../core/store';
 import { bounds, childrenOf, descendants, topSelection } from '../core/tree';
 import { isContainer, type ContainerLayout } from '../core/types';
 import { alignNodes, cloneForest, distributeNodes, groupNodes, moveNodes, placeForest, reorderNodes, type Alignment } from '../core/operations';
@@ -18,8 +18,13 @@ export class Editor {
   readonly renderer: CanvasRenderer;
   onSelection = () => {};
   onSaveCombination = () => {};
+  onEditComponent = (_id: string) => {};
+  onNewComponent = (_parentId?: string | null) => {};
+  onEditSavedCombination = (_id: string) => {};
+  private lastScope: string | null = null;
+  private lastContext: object | null = null;
   private colorPreviewId: string | null = null;
-  constructor(readonly store: Store) {
+  constructor(readonly store: StorePort, private getScopeRoot: () => string | null = () => null) {
     this.renderer = new CanvasRenderer(this.canvas, id => { if (!this.preview && !this.selectedIds.has(id)) this.select(id); });
     Object.assign(this.canvas.style, { width: `${CANVAS.width}px`, height: `${CANVAS.height}px` });
     this.canvas.style.setProperty('--grid-cell', `${GRID.cell}px`); this.canvas.style.setProperty('--grid-major', '48px');
@@ -28,6 +33,14 @@ export class Editor {
     store.subscribe(() => this.render());
     this.canvas.addEventListener('component-action', event => toast(String((event as CustomEvent).detail || '操作已触发')));
     this.render();
+  }
+  get scopeRootId() { return this.getScopeRoot(); }
+  get scopeRoot() { return this.store.doc.nodes.find(node => node.id === this.scopeRootId); }
+  get pageSize() { return this.scopeRoot ? { width: this.scopeRoot.colSpan * GRID.cell, height: this.scopeRoot.rowSpan * GRID.cell } : CANVAS; }
+  pageError(nodes: Placement[]): string | null {
+    if (!this.scopeRootId) return null;
+    const roots = nodes.filter(node => !node.parentId);
+    return roots.length !== 1 || roots[0].id !== this.scopeRootId || !isContainer(roots[0]) || roots[0].col !== 0 || roots[0].row !== 0 ? '设计页根组件不能移动、删除、换层或解散；请编辑其内容或使用画布尺寸设置' : null;
   }
   get selected() { return [...this.selectedIds].at(-1) ?? null; }
   get selection() { return topSelection(this.store.doc.nodes, this.selectedIds); }
@@ -45,25 +58,31 @@ export class Editor {
     this.renderer.selection(this.store.doc.nodes, this.selectedIds, this.preview);
     this.selectionStatus(); this.onSelection();
   }
-  selectAll(parentId: string | null = null) { this.setSelection(childrenOf(this.store.doc.nodes, parentId).map(node => node.id)); }
+  selectAll(parentId: string | null = null) { this.setSelection(childrenOf(this.store.doc.nodes, parentId ?? this.scopeRootId).map(node => node.id)); }
   private selectionStatus() {
     $('selection-status').textContent = this.selectedIds.size > 1 ? `已选择 ${this.selectedIds.size} 个组件 · Shift 点击增减选择` : this.node ? `${this.node.props.title || '组件'} · ${this.renderer.element(this.node.id)?.offsetWidth} × ${this.renderer.element(this.node.id)?.offsetHeight} px` : '未选择组件 · 空白处拖动框选';
     document.querySelectorAll<HTMLButtonElement>('[data-selection-action]').forEach(button => { button.disabled = this.preview || !this.selectedIds.size; });
   }
-  previewColors(id: string, props: Props) { this.colorPreviewId = id; this.renderer.preview(id, props); }
-  applyAppearance(appearance: Document['appearance']) { this.canvas.style.setProperty('--canvas-background', appearance.background); this.canvas.style.setProperty('--canvas-grid', appearance.grid); }
+  previewColors(id: string, props: Props) { this.colorPreviewId = id; this.renderer.preview(id, props); if (id === this.scopeRootId && props.background) this.canvas.style.setProperty('--canvas-background', props.background); }
+  applyAppearance(appearance: Document['appearance']) { this.canvas.style.setProperty('--canvas-background', this.scopeRoot?.props.background ?? appearance.background); this.canvas.style.setProperty('--canvas-grid', appearance.grid); }
   render() {
+    const context = this.store.contextToken ?? this.store;
+    if (this.lastScope !== this.scopeRootId || this.lastContext !== context) { this.renderer.clear(); this.lastScope = this.scopeRootId; this.lastContext = context; }
+    const size = this.pageSize; Object.assign(this.canvas.style, { width: `${size.width}px`, height: `${size.height}px` });
+    $('grid-dimensions').textContent = `${Math.ceil(size.width / GRID.cell)} × ${Math.ceil(size.height / GRID.cell)}`;
+    this.setZoom(this.zoom);
     this.colorPreviewId = null; this.applyAppearance(this.store.doc.appearance);
     this.selectedIds = new Set([...this.selectedIds].filter(id => this.store.doc.nodes.some(node => node.id === id)));
-    this.renderer.render(this.store.doc, this.selectedIds, this.preview);
+    this.renderer.render(this.store.doc, this.selectedIds, this.preview, this.scopeRootId);
     $('empty-state').hidden = !!this.store.doc.nodes.length;
-    $('node-count').textContent = `${this.store.doc.nodes.length} 个组件`;
+    $('node-count').textContent = this.scopeRootId ? `${this.store.doc.nodes.length - 1} 个内容组件` : `${this.store.doc.nodes.length} 个组件`;
     $<HTMLButtonElement>('undo').disabled = !this.store.canUndo || this.preview; $<HTMLButtonElement>('redo').disabled = !this.store.canRedo || this.preview;
     this.selectionStatus(); this.onSelection();
   }
   commit(nodes: Placement[], ids?: Iterable<string>) {
     if (this.preview) return false;
     try {
+      const pageError = this.pageError(nodes); if (pageError) throw new Error(pageError);
       const doc = parseDocument(JSON.stringify({ ...this.store.doc, nodes }));
       const unchanged = JSON.stringify(doc) === JSON.stringify(this.store.doc);
       if (ids) this.selectedIds = new Set(ids);
@@ -77,7 +96,8 @@ export class Editor {
   }
   add(type: string, placement?: Placement, parentId: string | null = null) {
     if (this.preview) return;
-    const node = placement ?? findSpace({ ...createNode(type), parentId }, this.store.doc.nodes);
+    const target = parentId ?? this.scopeRootId;
+    const node = placement ? { ...placement, parentId: placement.parentId ?? target } : findSpace({ ...createNode(type), parentId: target }, this.store.doc.nodes);
     if (!node) { toast('没有可用空间，可调整容器尺寸或使用自动布局'); return; }
     this.commit([...this.store.doc.nodes, node], [node.id]);
   }
@@ -101,7 +121,7 @@ export class Editor {
   insertSnapshot(snapshot: Document, parentId: string | null = null, position?: { col: number; row: number }) {
     try {
       const copies = cloneForest(snapshot.nodes, snapshot.nodes.filter(node => !node.parentId).map(node => node.id));
-      this.commit([...this.store.doc.nodes, ...placeForest(copies.nodes, copies.roots, this.store.doc.nodes, parentId, position)], copies.roots);
+      this.commit([...this.store.doc.nodes, ...placeForest(copies.nodes, copies.roots, this.store.doc.nodes, parentId ?? this.scopeRootId, position)], copies.roots);
     } catch (error) { toast((error as Error).message); }
   }
   logicalRect(id: string) {
@@ -149,7 +169,7 @@ export class Editor {
   }
   setZoom(value: number) {
     this.zoom = value; this.canvas.style.transform = `scale(${value})`;
-    $('canvas-shell').style.width = `${CANVAS.width * value}px`; $('canvas-shell').style.height = `${CANVAS.height * value}px`;
+    $('canvas-shell').style.width = `${this.pageSize.width * value}px`; $('canvas-shell').style.height = `${this.pageSize.height * value}px`;
   }
   setPreview() {
     this.preview = !this.preview; document.body.classList.toggle('preview', this.preview);

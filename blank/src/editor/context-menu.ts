@@ -1,7 +1,4 @@
 import { registry } from '../components/registry';
-import { createNode } from '../core/model';
-import { GRID } from '../core/grid';
-import { contentSize } from '../core/tree';
 import { isContainer } from '../core/types';
 import type { Combinations } from '../core/combinations';
 import { $, Editor } from './editor';
@@ -23,25 +20,17 @@ export function setupContextMenu(editor: Editor, combinations: Combinations, dia
     const actions: Action[] = [];
     if (tile?.dataset.combination) {
       const item = combinations.items.find(item => item.id === tile.dataset.combination);
-      if (item) { title = item.name; actions.push({ label: '添加此组合', disabled: editor.preview, run: () => editor.insertSnapshot(item.document) }, { label: '重命名组合', disabled: editor.preview, run: () => dialogs.rename(item.id) }, { label: '删除组合', danger: true, disabled: editor.preview, run: () => dialogs.remove(item.id) }); }
+      if (item) { title = item.name; actions.push({ label: '添加此组合', disabled: editor.preview, run: () => editor.insertSnapshot(item.document) }, { label: '设计组合', disabled: editor.preview, run: () => editor.onEditSavedCombination(item.id) }, { label: '重命名组合', disabled: editor.preview, run: () => dialogs.rename(item.id) }, { label: '删除组合', danger: true, disabled: editor.preview, run: () => dialogs.remove(item.id) }); }
     } else if (tile?.dataset.type) {
       const type = tile.dataset.type; title = registry.get(type)!.title;
       actions.push({ label: `添加${title}`, disabled: editor.preview, run: () => editor.add(type) });
     } else if (!editor.preview && editor.selectedIds.size) actions.push(...selectionActions(editor).filter(action => !action.disabled));
     if (!editor.preview && !tile) {
       actions.push({ label: '全选当前同级组件', run: () => editor.selectAll(node?.parentId ?? null) },
-        { label: '新建布局容器', run: () => {
-          const parentId = node && isContainer(node) ? node.id : node?.parentId ?? null;
-          const item = createNode('layout.container'); item.parentId = parentId;
-          const canvas = editor.canvas.getBoundingClientRect(); const origin = editor.origin(parentId);
-          const size = contentSize(editor.store.doc.nodes.find(other => other.id === parentId));
-          item.col = Math.max(0, Math.min(Math.round((x - canvas.left) / editor.zoom / GRID.cell - origin.col), size.cols - item.colSpan));
-          item.row = Math.max(0, Math.min(Math.round((y - canvas.top) / editor.zoom / GRID.cell - origin.row), size.rows - item.rowSpan));
-          editor.add(item.type, item, parentId);
-        } });
+        { label: '在新页面设计容器', run: () => editor.onNewComponent(node && isContainer(node) ? node.id : node?.parentId ?? editor.scopeRootId) });
     }
     actions.push({ label: '撤销', disabled: editor.preview || !editor.store.canUndo, run: () => editor.store.undo() }, { label: '重做', disabled: editor.preview || !editor.store.canRedo, run: () => editor.store.redo() },
-      { label: editor.preview ? '返回编辑' : '进入预览', run: () => $('preview').click() }, { label: '保存当前布局', run: () => $('save').click() });
+      { label: editor.preview ? '返回编辑' : '进入预览', run: () => $('preview').click() }, { label: editor.scopeRootId ? '应用当前组件设计' : '保存当前布局', run: () => $('save').click() });
     const heading = document.createElement('div'); heading.className = 'context-heading'; heading.textContent = title; heading.setAttribute('role', 'presentation'); menu.replaceChildren(heading);
     for (const action of actions) menu.append(actionButton({ ...action, run: () => { close(); action.run(); } }, true));
     menu.hidden = false; menu.style.left = '0px'; menu.style.top = '0px';

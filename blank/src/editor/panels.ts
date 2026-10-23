@@ -35,6 +35,7 @@ export function setupPanels(editor: Editor, combinations: Combinations, dialogs:
     const query = $<HTMLInputElement>('search').value.trim().toLowerCase();
     const container = $('component-list');
     container.replaceChildren();
+    $('create-combination').hidden = kind !== '我的组合'; ($('create-combination') as HTMLButtonElement).disabled = editor.preview;
     $('library-count').textContent = String(components.length + combinations.items.length);
     if (kind === '我的组合') { const count = combinationTiles(container, editor, combinations, query, dialogs); $('library-results').textContent = `${count} 个本地组合 · 拖入或点击添加`; return; }
     let count = 0;

@@ -3,7 +3,18 @@ import { initialDocument, parseDocument, type Document } from './model';
 // 保留原存储键以发现旧布局；文档内容通过 schemaVersion 迁移为 v3。
 export const STORAGE_KEY = 'componentweb.document.v1';
 
-export class Store {
+export interface StorePort {
+  readonly contextToken?: object;
+  readonly doc: Document;
+  readonly canUndo: boolean;
+  readonly canRedo: boolean;
+  subscribe(listener: () => void): () => unknown;
+  commit(doc: Document): void;
+  undo(): void;
+  redo(): void;
+}
+
+export class Store implements StorePort {
   doc: Document;
   private past: Document[] = [];
   private future: Document[] = [];

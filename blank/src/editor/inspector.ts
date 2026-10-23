@@ -58,7 +58,7 @@ export function setupInspector(editor: Editor) {
         if (input) input.value = node.props[key] ?? '';
       }
       form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input, textarea').forEach(control => { control.disabled = editor.preview; });
-      if (automatic) { $<HTMLInputElement>('prop-col').disabled = true; $<HTMLInputElement>('prop-row').disabled = true; }
+      if (automatic || node.id === editor.scopeRootId) { $<HTMLInputElement>('prop-col').disabled = true; $<HTMLInputElement>('prop-row').disabled = true; }
       if (parent?.layout?.mode === 'grid') $<HTMLInputElement>('prop-colSpan').disabled = true;
       form.addEventListener('submit', event => event.preventDefault());
       form.addEventListener('change', event => {
@@ -69,6 +69,10 @@ export function setupInspector(editor: Editor) {
         else updated.props[control.name as 'title' | 'description' | 'source'] = control.value;
         if (!editor.update(updated)) render();
       });
+      if (node.id !== editor.scopeRootId) {
+        const design = document.createElement('button'); design.type = 'button'; design.className = 'edit-design-button'; design.textContent = '进入独立组件设计页 ↗'; design.disabled = editor.preview;
+        design.addEventListener('click', () => editor.onEditComponent(node.id)); container.append(design);
+      }
       container.append(layoutPanel(editor));
       container.append(section('圆角与边框', 'SHAPE'));
       container.append(shapeControls(shapeOf(node.props), editor.preview,
@@ -101,20 +105,20 @@ export function setupInspector(editor: Editor) {
       actions.className = 'inspector-actions';
       actions.innerHTML = '<button id="duplicate" type="button">⧉ 复制</button><button id="delete" type="button" class="danger">⌫ 删除</button>';
       container.append(actions);
-      actions.querySelectorAll('button').forEach(button => { button.disabled = editor.preview; });
+      actions.querySelectorAll('button').forEach(button => { button.disabled = editor.preview || node.id === editor.scopeRootId; });
       $('duplicate').addEventListener('click', () => editor.duplicate());
       $('delete').addEventListener('click', () => editor.remove());
     }
     container.append(layerPanel(editor));
-    container.append(section('画布配色', 'CANVAS'));
-    container.append(colorControls({ prefix: 'canvas', fields: [['background', '画布背景'], ['grid', '网格线色']],
+    container.append(section(editor.scopeRootId ? '设计网格' : '画布配色', 'CANVAS'));
+    container.append(colorControls({ prefix: 'canvas', fields: editor.scopeRootId ? [['grid', '设计网格线色']] : [['background', '画布背景'], ['grid', '网格线色']],
       values: editor.store.doc.appearance, disabled: editor.preview,
       preview: values => editor.applyAppearance(values as typeof DEFAULT_APPEARANCE),
       commit: values => editor.store.commit({ ...editor.store.doc, appearance: values as typeof DEFAULT_APPEARANCE }),
     }));
     const resetCanvas = document.createElement('button');
-    resetCanvas.className = 'reset-colors'; resetCanvas.textContent = '↶ 恢复画布默认配色'; resetCanvas.disabled = editor.preview;
-    resetCanvas.addEventListener('click', () => editor.store.commit({ ...editor.store.doc, appearance: { ...DEFAULT_APPEARANCE } }));
+    resetCanvas.className = 'reset-colors'; resetCanvas.textContent = editor.scopeRootId ? '↶ 恢复设计网格默认线色' : '↶ 恢复画布默认配色'; resetCanvas.disabled = editor.preview;
+    resetCanvas.addEventListener('click', () => editor.store.commit({ ...editor.store.doc, appearance: editor.scopeRootId ? { ...editor.store.doc.appearance, grid: DEFAULT_APPEARANCE.grid } : { ...DEFAULT_APPEARANCE } }));
     container.append(resetCanvas);
     if (restoreId) {
       const control = document.getElementById(restoreId) as HTMLInputElement | HTMLTextAreaElement | null;

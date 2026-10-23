@@ -59,6 +59,8 @@ export async function checkWorkbench(source: Page) {
     await page.locator('#undo').click(); await pick(rootId!);
     assert(await page.locator('.node[data-container="true"]').count() === 1, '一次撤销恢复容器和子树');
     await page.locator('.container-add select').selectOption('layout.container'); await page.getByRole('button', { name: '添加到此容器', exact: true }).click();
+    assert(await page.locator('#designer-panel').isVisible(), '创建嵌套容器进入独立设计页');
+    await page.locator('#designer-height').fill('120'); await page.locator('#designer-height').press('Tab'); await page.locator('#designer-save').click();
     const innerId = await page.locator('.node.selected').getAttribute('data-id'); assert(innerId && innerId !== rootId, '可以嵌套容器');
     await page.locator('#prop-rowSpan').fill('120'); await page.locator('#prop-rowSpan').press('Tab');
     await page.locator('.container-add select').selectOption('basic.button'); await page.getByRole('button', { name: '添加到此容器', exact: true }).click();
