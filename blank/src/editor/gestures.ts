@@ -75,7 +75,7 @@ export function setupGestures(editor: Editor) {
       width: `${node.colSpan * GRID.cell}px`, height: `${node.rowSpan * GRID.cell}px`,
     });
     ghost.querySelector('span')!.textContent = gesture.valid
-      ? `${node.colSpan} × ${node.rowSpan} 格 · ${node.col}, ${node.row}`
+      ? `${node.colSpan * GRID.cell} × ${node.rowSpan * GRID.cell} px · ${node.col * GRID.cell}, ${node.row * GRID.cell}`
       : '无法放置 · 重叠或超出边界';
   });
 

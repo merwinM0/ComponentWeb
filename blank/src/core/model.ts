@@ -3,7 +3,8 @@ import type { Props } from '../components/contract';
 import { colorsOf, COLOR_FIELDS, isColor } from '../components/colors';
 import { isValidShape, shapeOf } from '../components/shape';
 
-export const GRID = { cols: 40, rows: 30, cell: 24 } as const;
+import { GRID, LEGACY_GRID, matchesGrid } from './grid';
+export { GRID } from './grid';
 export interface Placement {
   id: string;
   type: string;
@@ -15,7 +16,7 @@ export interface Placement {
 }
 export const DEFAULT_APPEARANCE = { background: '#0c1520', grid: '#82c4ed' };
 export interface Document {
-  schemaVersion: 1;
+  schemaVersion: 2;
   appearance: typeof DEFAULT_APPEARANCE;
   grid: typeof GRID;
   nodes: Placement[];
@@ -55,13 +56,20 @@ export function findSpace(node: Placement, nodes: Placement[]): Placement | unde
 
 export function parseDocument(raw: string): Document {
   const doc = JSON.parse(raw);
-  if (doc?.schemaVersion !== 1 || doc.grid?.cols !== GRID.cols || doc.grid?.rows !== GRID.rows || doc.grid?.cell !== GRID.cell || !Array.isArray(doc.nodes) || doc.nodes.length > 300) throw new Error('存档格式不兼容');
+  const legacy = doc?.schemaVersion === 1 && matchesGrid(doc.grid, LEGACY_GRID);
+  const current = doc?.schemaVersion === 2 && matchesGrid(doc.grid, GRID);
+  if ((!legacy && !current) || !Array.isArray(doc.nodes) || doc.nodes.length > 300) throw new Error('存档格式不兼容');
+  const scale = legacy ? LEGACY_GRID.cell / GRID.cell : 1;
   const appearance = { ...DEFAULT_APPEARANCE, ...doc.appearance };
   if ((doc.appearance !== undefined && (typeof doc.appearance !== 'object' || doc.appearance === null || Array.isArray(doc.appearance))) || !isColor(appearance.background) || !isColor(appearance.grid)) throw new Error('画布颜色无效');
   const nodes: Placement[] = [];
   const ids = new Set<string>();
-  for (const node of doc.nodes) {
-    if (!node || typeof node.id !== 'string' || !node.id || ids.has(node.id) ||
+  for (const source of doc.nodes) {
+    // 迁移前也要校验整数，防止小数旧坐标乘倍数后意外变成合法数据。
+    if (!source || ![source.col, source.row, source.colSpan, source.rowSpan].every(Number.isInteger)) throw new Error('存档中的网格坐标无效');
+    const node = { ...source, col: source.col * scale, row: source.row * scale,
+      colSpan: source.colSpan * scale, rowSpan: source.rowSpan * scale };
+    if (typeof node.id !== 'string' || !node.id || ids.has(node.id) ||
       typeof node.type !== 'string' || !node.props ||
       !['title', 'description', 'accent'].every(key => typeof node.props[key] === 'string' && node.props[key].length <= 2000) ||
       !isColor(node.props.accent) || !isValidShape(node.props) ||
@@ -77,13 +85,13 @@ export function parseDocument(raw: string): Document {
       props: { title: node.props.title, description: node.props.description,
         ...colors, ...shapeOf(node.props), source: node.props.source ?? '' } });
   }
-  return { schemaVersion: 1, grid: { ...GRID }, appearance: { background: appearance.background, grid: appearance.grid }, nodes };
+  return { schemaVersion: 2, grid: { ...GRID }, appearance: { background: appearance.background, grid: appearance.grid }, nodes };
 }
 
 export function initialDocument(): Document {
-  const card = { ...createNode('content.card'), col: 3, row: 3 };
-  const metric = { ...createNode('data.metric'), col: 16, row: 3 };
-  const button = { ...createNode('basic.button'), col: 16, row: 9 };
-  const input = { ...createNode('basic.input'), col: 3, row: 12 };
-  return { schemaVersion: 1, grid: { ...GRID }, appearance: { ...DEFAULT_APPEARANCE }, nodes: [card, metric, button, input] };
+  const card = { ...createNode('content.card'), col: 72 / GRID.cell, row: 72 / GRID.cell };
+  const metric = { ...createNode('data.metric'), col: 384 / GRID.cell, row: 72 / GRID.cell };
+  const button = { ...createNode('basic.button'), col: 384 / GRID.cell, row: 216 / GRID.cell };
+  const input = { ...createNode('basic.input'), col: 72 / GRID.cell, row: 288 / GRID.cell };
+  return { schemaVersion: 2, grid: { ...GRID }, appearance: { ...DEFAULT_APPEARANCE }, nodes: [card, metric, button, input] };
 }

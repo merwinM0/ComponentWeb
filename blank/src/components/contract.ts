@@ -20,6 +20,7 @@ export interface ComponentDefinition {
   sourceLabel?: string;
   contentLabel?: string;
   description: string;
+  /** 目录源文件以 24px 为设计单位；注册表输出为当前 8px 网格单位。 */
   size: [number, number];
   min: [number, number];
   defaults: Props;

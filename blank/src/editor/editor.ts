@@ -5,6 +5,7 @@ import type { Props } from '../components/contract';
 import { isColor } from '../components/colors';
 import { isValidShape, shapeOf } from '../components/shape';
 import type { DEFAULT_APPEARANCE } from '../core/model';
+import { CANVAS } from '../core/grid';
 
 export const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 let toastTimer: ReturnType<typeof setTimeout>;
@@ -29,6 +30,13 @@ export class Editor {
   onSelection = () => {};
 
   constructor(readonly store: Store) {
+    this.canvas.style.width = `${CANVAS.width}px`;
+    this.canvas.style.height = `${CANVAS.height}px`;
+    this.canvas.style.setProperty('--grid-cell', `${GRID.cell}px`);
+    this.canvas.style.setProperty('--grid-major', `${GRID.cell * 6}px`);
+    $('grid-dimensions').textContent = `${GRID.cols} × ${GRID.rows}`;
+    $('grid-cell-label').textContent = `${GRID.cell} px 网格`;
+    this.setZoom(1);
     store.subscribe(() => this.render());
     this.canvas.addEventListener('pointerdown', event => {
       if (event.target === this.canvas && !this.preview) this.select(null);
@@ -60,7 +68,7 @@ export class Editor {
       mounted.element.querySelector<HTMLElement>('.resize-handle')!.hidden = !selected;
     }
     $('selection-status').textContent = this.node
-      ? `${registry.get(this.node.type)!.title} · ${this.node.colSpan} × ${this.node.rowSpan} 格`
+      ? `${registry.get(this.node.type)!.title} · ${this.node.colSpan * GRID.cell} × ${this.node.rowSpan * GRID.cell} px`
       : '未选择组件';
   }
 
@@ -115,7 +123,7 @@ export class Editor {
       mounted.element.style.width = `${node.colSpan * GRID.cell}px`;
       mounted.element.style.height = `${node.rowSpan * GRID.cell}px`;
       mounted.element.style.borderRadius = `${shapeOf(node.props).radius}px`;
-      mounted.element.querySelector('.node-label')!.textContent = `${definition.title} · ${node.colSpan} × ${node.rowSpan}`;
+      mounted.element.querySelector('.node-label')!.textContent = `${definition.title} · ${node.colSpan * GRID.cell} × ${node.rowSpan * GRID.cell} px`;
       mounted.instance.update(node.props);
       // 小尺寸组件仍可用键盘滚动内部内容，不改变已有交互控件的 tabindex。
       mounted.element.querySelector('.component-host')!.shadowRoot!.querySelectorAll<HTMLElement>('.box, .frame, article').forEach(region => {

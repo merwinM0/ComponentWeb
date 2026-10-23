@@ -4,6 +4,7 @@ import { colorsOf, contrastRatio, isColor, palettes } from './colors';
 import { safeSource } from './native/factory';
 import { canPlace, createNode, DEFAULT_APPEARANCE, initialDocument, parseDocument } from '../core/model';
 import { Store } from '../core/store';
+import { LEGACY_GRID } from '../core/grid';
 
 describe('组件目录', () => {
   test('类型唯一，每项都能在网格中放置并无损保存', () => {
@@ -34,8 +35,10 @@ describe('配色与兼容', () => {
   test('旧记录补齐颜色和画布设置，并保留按钮强调色', () => {
     const doc = initialDocument();
     const old = {
-      schemaVersion: 1, grid: doc.grid,
-      nodes: doc.nodes.map(node => ({ ...node, props: { title: node.props.title, description: node.props.description, accent: '#ffcc88' } })),
+      schemaVersion: 1, grid: LEGACY_GRID,
+      nodes: doc.nodes.map(node => ({ ...node, col: node.col / 3, row: node.row / 3,
+        colSpan: node.colSpan / 3, rowSpan: node.rowSpan / 3,
+        props: { title: node.props.title, description: node.props.description, accent: '#ffcc88' } })),
     };
     const restored = parseDocument(JSON.stringify(old));
     expect(restored.appearance).toEqual(DEFAULT_APPEARANCE);

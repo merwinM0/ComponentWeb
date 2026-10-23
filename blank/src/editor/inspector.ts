@@ -35,7 +35,7 @@ export function setupInspector(editor: Editor) {
             <label class="field">宽度 W<input id="prop-colSpan" name="colSpan" type="number" min="${definition.min[0]}" max="${GRID.cols - node.col}" step="1" required></label>
             <label class="field">高度 H<input id="prop-rowSpan" name="rowSpan" type="number" min="${definition.min[1]}" max="${GRID.rows - node.row}" step="1" required></label>
           </div>
-          <p class="inspector-help">单位为网格 · 每格 24 px · 最小 ${definition.min[0]} × ${definition.min[1]} 格</p>
+          <p class="inspector-help">每格 ${GRID.cell} px · 方向键移动一格<br>当前 ${node.colSpan * GRID.cell} × ${node.rowSpan * GRID.cell} px · 最小 ${definition.min[0] * GRID.cell} × ${definition.min[1] * GRID.cell} px</p>
           <div class="section-title">组件内容 <span>CONTENT</span></div>
           <label class="field full">标题 / 文本<input id="prop-title" name="title" type="text" maxlength="120"></label>
           <label class="field full">${definition.contentLabel ?? (node.type === 'data.metric' ? '指标数值' : '说明文字')}<textarea id="prop-description" name="description" maxlength="1000"></textarea></label>

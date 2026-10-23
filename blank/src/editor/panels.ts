@@ -1,6 +1,7 @@
 import { components } from '../components/registry';
 import { $, Editor } from './editor';
 import { setupInspector } from './inspector';
+import { GRID } from '../core/grid';
 
 const previews: Record<string, string> = {
   'content.card': '<div class="mini-card"><div class="mini-line short"></div><div class="mini-line"></div><div class="mini-line"></div></div>',
@@ -59,7 +60,7 @@ export function setupPanels(editor: Editor) {
       const text = document.createElement('div');
       const title = document.createElement('strong'); title.textContent = definition.title;
       const hint = document.createElement('small');
-      hint.textContent = `${definition.size[0]} × ${definition.size[1]} 格 · ${definition.tags?.map(tag => `<${tag}>`).join(' ') ?? definition.category}`;
+      hint.textContent = `${definition.size[0] * GRID.cell} × ${definition.size[1] * GRID.cell} px · ${definition.tags?.map(tag => `<${tag}>`).join(' ') ?? definition.category}`;
       text.append(title, hint);
       const add = document.createElement('button'); add.type = 'button'; add.textContent = '＋ 添加';
       add.setAttribute('aria-label', `添加${definition.title}`); add.disabled = editor.preview;
