@@ -6,10 +6,10 @@ function empty() { return { ...initialDocument(), nodes: [] }; }
 
 describe('网格布局', () => {
   test('像素吸附到最近的网格', () => {
-    expect(snap(11)).toBe(1);
-    expect(snap(12)).toBe(2);
-    expect(snap(-9)).toBe(-1);
-    expect(snap(35)).toBe(4);
+    expect(snap(17)).toBe(1);
+    expect(snap(18)).toBe(2);
+    expect(snap(-13)).toBe(-1);
+    expect(snap(35)).toBe(3);
   });
   test('边缘相接允许放置，交叉则冲突', () => {
     const a = createNode('basic.button');
@@ -18,13 +18,14 @@ describe('网格布局', () => {
     expect(canPlace(b, [a])).toBe(true);
     expect(canPlace({ ...b, col: b.col - 1 }, [a])).toBe(false);
   });
-  test('禁止越界、小于最小尺寸和非整数坐标', () => {
+  test('禁止越界、小于最小尺寸和非有限坐标', () => {
     const node = createNode('basic.button');
     expect(canPlace({ ...node, col: -1 }, [])).toBe(false);
     expect(canPlace({ ...node, col: GRID.cols - node.colSpan + 1 }, [])).toBe(false);
     expect(canPlace({ ...node, row: GRID.rows - node.rowSpan + 1 }, [])).toBe(false);
     expect(canPlace({ ...node, colSpan: 1 }, [])).toBe(false);
-    expect(canPlace({ ...node, col: 1.5 }, [])).toBe(false);
+    expect(canPlace({ ...node, col: Infinity }, [])).toBe(false);
+    expect(canPlace({ ...node, col: 1 / 3 }, [])).toBe(true);
     expect(canPlace({ ...node, row: NaN }, [])).toBe(false);
   });
   test('移动时忽略自身', () => {

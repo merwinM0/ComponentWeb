@@ -4,7 +4,7 @@ import { colorsOf, contrastRatio, isColor, palettes } from './colors';
 import { safeSource } from './native/factory';
 import { canPlace, createNode, DEFAULT_APPEARANCE, initialDocument, parseDocument } from '../core/model';
 import { Store } from '../core/store';
-import { LEGACY_GRID } from '../core/grid';
+import { GRID, LEGACY_GRID } from '../core/grid';
 
 describe('组件目录', () => {
   test('类型唯一，每项都能在网格中放置并无损保存', () => {
@@ -36,8 +36,8 @@ describe('配色与兼容', () => {
     const doc = initialDocument();
     const old = {
       schemaVersion: 1, grid: LEGACY_GRID,
-      nodes: doc.nodes.map(node => ({ ...node, col: node.col / 3, row: node.row / 3,
-        colSpan: node.colSpan / 3, rowSpan: node.rowSpan / 3,
+      nodes: doc.nodes.map(node => ({ ...node, col: node.col * GRID.cell / LEGACY_GRID.cell, row: node.row * GRID.cell / LEGACY_GRID.cell,
+        colSpan: node.colSpan * GRID.cell / LEGACY_GRID.cell, rowSpan: node.rowSpan * GRID.cell / LEGACY_GRID.cell,
         props: { title: node.props.title, description: node.props.description, accent: '#ffcc88' } })),
     };
     const restored = parseDocument(JSON.stringify(old));

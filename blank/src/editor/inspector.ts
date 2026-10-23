@@ -5,6 +5,10 @@ import { $, Editor } from './editor';
 import { colorControls } from './color-controls';
 import { shapeControls } from './shape-controls';
 import { shapeOf } from '../components/shape';
+import { contentSize } from '../core/tree';
+import { layoutPanel } from './layout-panel';
+import { layerPanel } from './layers';
+import { renderMulti } from './selection-actions';
 
 function section(title: string, english: string) {
   const heading = document.createElement('div');
@@ -21,21 +25,26 @@ export function setupInspector(editor: Editor) {
     const restoreId = focused && container.contains(focused) ? focused.id : '';
     const selection = focused instanceof HTMLTextAreaElement || (focused instanceof HTMLInputElement && focused.type === 'text')
       ? [focused.selectionStart, focused.selectionEnd] : null;
-    if (!node) {
+    if (editor.selectedIds.size > 1) {
+      renderMulti(container, editor);
+    } else if (!node) {
       container.innerHTML = '<div class="no-selection"><span aria-hidden="true">⌖</span><h2>每一格，都有可能</h2><p>选择组件调整内容与配色<br>也可以先为画布换个颜色</p></div>';
     } else {
       const definition = registry.get(node.type)!;
+      const parent = editor.store.doc.nodes.find(other => other.id === node.parentId);
+      const automatic = !!parent?.layout && parent.layout.mode !== 'free';
+      const area = contentSize(parent);
       container.innerHTML = `
         <div class="inspector-identity"><span class="identity-icon" aria-hidden="true">${definition.icon}</span><div><strong>${definition.title}</strong><small></small></div></div>
         <form id="properties">
           <div class="section-title">布局 <span>LAYOUT</span></div>
           <div class="field-grid">
-            <label class="field">列位置 X<input id="prop-col" name="col" type="number" min="0" max="${GRID.cols - node.colSpan}" step="1" required></label>
-            <label class="field">行位置 Y<input id="prop-row" name="row" type="number" min="0" max="${GRID.rows - node.rowSpan}" step="1" required></label>
-            <label class="field">宽度 W<input id="prop-colSpan" name="colSpan" type="number" min="${definition.min[0]}" max="${GRID.cols - node.col}" step="1" required></label>
-            <label class="field">高度 H<input id="prop-rowSpan" name="rowSpan" type="number" min="${definition.min[1]}" max="${GRID.rows - node.row}" step="1" required></label>
+            <label class="field">位置 X（px）<input id="prop-col" name="col" type="number" min="0" max="${(area.cols - node.colSpan) * GRID.cell}" step="any" required></label>
+            <label class="field">位置 Y（px）<input id="prop-row" name="row" type="number" min="0" max="${(area.rows - node.rowSpan) * GRID.cell}" step="any" required></label>
+            <label class="field">宽度 W（px）<input id="prop-colSpan" name="colSpan" type="number" min="${definition.min[0] * GRID.cell}" max="${(automatic ? GRID.cols : area.cols - node.col) * GRID.cell}" step="any" required></label>
+            <label class="field">高度 H（px）<input id="prop-rowSpan" name="rowSpan" type="number" min="${definition.min[1] * GRID.cell}" max="${(automatic ? GRID.rows : area.rows - node.row) * GRID.cell}" step="any" required></label>
           </div>
-          <p class="inspector-help">每格 ${GRID.cell} px · 方向键移动一格<br>当前 ${node.colSpan * GRID.cell} × ${node.rowSpan * GRID.cell} px · 最小 ${definition.min[0] * GRID.cell} × ${definition.min[1] * GRID.cell} px</p>
+          <p class="inspector-help">拖动按 ${GRID.cell}px 吸附；输入框单位为像素。${automatic ? `<br>位置由父容器自动排版；输入为请求尺寸，Grid 宽度由列控制。实际 ${editor.renderer.element(node.id)?.offsetWidth} × ${editor.renderer.element(node.id)?.offsetHeight} px。` : ''}<br>最小 ${definition.min[0] * GRID.cell} × ${definition.min[1] * GRID.cell} px</p>
           <div class="section-title">组件内容 <span>CONTENT</span></div>
           <label class="field full">标题 / 文本<input id="prop-title" name="title" type="text" maxlength="120"></label>
           <label class="field full">${definition.contentLabel ?? (node.type === 'data.metric' ? '指标数值' : '说明文字')}<textarea id="prop-description" name="description" maxlength="1000"></textarea></label>
@@ -43,22 +52,24 @@ export function setupInspector(editor: Editor) {
         </form>`;
       container.querySelector('.inspector-identity small')!.textContent = `${definition.tags?.map(tag => `<${tag}>`).join(' ') ?? node.type} · ${node.id.slice(0, 6)}`;
       const form = $<HTMLFormElement>('properties');
-      for (const key of ['col', 'row', 'colSpan', 'rowSpan'] as const) $<HTMLInputElement>(`prop-${key}`).value = String(node[key]);
+      for (const key of ['col', 'row', 'colSpan', 'rowSpan'] as const) $<HTMLInputElement>(`prop-${key}`).value = String(Math.round(node[key] * GRID.cell * 1000000) / 1000000);
       for (const key of ['title', 'description', 'source'] as const) {
         const input = document.getElementById(`prop-${key}`) as HTMLInputElement | null;
         if (input) input.value = node.props[key] ?? '';
       }
       form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input, textarea').forEach(control => { control.disabled = editor.preview; });
+      if (automatic) { $<HTMLInputElement>('prop-col').disabled = true; $<HTMLInputElement>('prop-row').disabled = true; }
+      if (parent?.layout?.mode === 'grid') $<HTMLInputElement>('prop-colSpan').disabled = true;
       form.addEventListener('submit', event => event.preventDefault());
-      form.addEventListener('change', () => {
+      form.addEventListener('change', event => {
         if (!form.reportValidity()) return;
-        const data = new FormData(form);
+        const control = event.target as HTMLInputElement;
         const updated = { ...node, props: { ...node.props } };
-        for (const key of ['col', 'row', 'colSpan', 'rowSpan'] as const) updated[key] = Number(data.get(key));
-        for (const key of ['title', 'description'] as const) updated.props[key] = String(data.get(key));
-        if (definition.sourceLabel) updated.props.source = String(data.get('source'));
+        if (['col', 'row', 'colSpan', 'rowSpan'].includes(control.name)) updated[control.name as 'col' | 'row' | 'colSpan' | 'rowSpan'] = Number(control.value) / GRID.cell;
+        else updated.props[control.name as 'title' | 'description' | 'source'] = control.value;
         if (!editor.update(updated)) render();
       });
+      container.append(layoutPanel(editor));
       container.append(section('圆角与边框', 'SHAPE'));
       container.append(shapeControls(shapeOf(node.props), editor.preview,
         values => editor.update({ ...node, props: { ...node.props, ...values } })));
@@ -94,6 +105,7 @@ export function setupInspector(editor: Editor) {
       $('duplicate').addEventListener('click', () => editor.duplicate());
       $('delete').addEventListener('click', () => editor.remove());
     }
+    container.append(layerPanel(editor));
     container.append(section('画布配色', 'CANVAS'));
     container.append(colorControls({ prefix: 'canvas', fields: [['background', '画布背景'], ['grid', '网格线色']],
       values: editor.store.doc.appearance, disabled: editor.preview,

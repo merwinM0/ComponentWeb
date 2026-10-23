@@ -1,95 +1,103 @@
 # ComponentWeb
 
-一个以网格布局为核心的前端组件工作台。使用 Bun + HTML + CSS + TypeScript，代码位于 `blank/`，`vue/` 和 `react/` 暂留作后续扩展。
+一个使用 Bun + HTML + CSS + TypeScript 的网格组件布局工作台。原生实现位于 `blank/`；Vue / React 适配暂未实现。
 
-当前 v0.3 提供 137 项素材（23 项组合/基础组件、114 项原生标签素材），并支持组件与画布独立配色、组件圆角与边框设置（默认直角）。完整清单和能力边界见 [CATALOGUE.md](./CATALOGUE.md)，后续优先级见 [ROADMAP.md](./ROADMAP.md)。
+当前 v0.4 包含 **138 项内置素材**：114 项原生标签素材、23 项基础 / 组合组件，以及可嵌套的布局容器。支持多选排版、真实 Flex / Grid、「我的组合」和上下文右键菜单。
 
-## 启动
+- [工作台操作说明](./WORKBENCH.md)
+- [素材与样式目录](./CATALOGUE.md)
+- [后续路线](./ROADMAP.md)
+
+## 启动与验证
 
 ```bash
 bun install
 bun run dev
 ```
 
-浏览器打开 http://localhost:3000 。
+打开 http://localhost:3000 。
 
 ```bash
-bun test             # 网格、文档校验与历史记录测试
-bun run typecheck    # TypeScript 检查
-bun run build        # 构建静态产物到 dist/
-```
+bun test
+bun run typecheck
+bun run build
 
-可复现的浏览器检查（首次需安装 Chromium）：
-
-```bash
+# 首次运行浏览器检查需安装 Chromium 和相应系统库
 bunx playwright install chromium
 bun run test:browser
 ```
 
-脚本自动启动独立的 3107 端口服务器，在隔离浏览器上下文中验证全部素材，并在结束后关闭进程。运行环境需要具备 Chromium 所需的系统库。截图输出至 `/tmp/componentweb-v2-desktop.png`、`/tmp/componentweb-v2-mobile.png`，细网格迁移截图为 `/tmp/componentweb-grid8.png`。
+浏览器脚本自动启动 3107 端口的测试服务器，并使用隔离上下文，结束后关闭服务器与浏览器，不使用日常工作区的存储。截图位于 `/tmp/componentweb-v4-nested.png`、`/tmp/componentweb-v2-desktop.png`、`/tmp/componentweb-v2-mobile.png` 和 `/tmp/componentweb-grid12.png`。
 
-## 当前交互
+## 核心能力
 
-- 左侧搜索和浏览组件；拖入工作区，或点击「添加」放入首个可用位置。
-- 工作区为固定 120 列 × 90 行，每格 8px，画布仍为 960×720px。相较原先 24px 网格，每个方向精度细化 3 倍，位置与尺寸仍保存为整数网格坐标。
-- 拖动组件外壳移动，右下角手柄调整尺寸；越界或重叠时不允许放置。
-- 右侧属性面板可编辑位置、尺寸、标题、说明；媒体与链接提供地址字段。
-- 组件背景、文字、边框、强调色分别可改，支持 HEX、实时拾色、四套配色预设、恢复默认和对比度提示；画布背景与网格线也可改色。
-- 组件默认 0px 直角，可设置圆角、边框粗细及实线 / 虚线 / 点线 / 无边框；支持预设和恢复默认，不改变网格占位。
-- 支持删除、复制、撤销、重做；方向键移动 1 格（8px），Shift + 方向键移动 5 格（40px）。
-- 支持 50%～125% 画布缩放；缩放不修改布局数据。
-- 编辑模式由外壳接管交互，预览模式允许操作组件内部控件。
-- 自动保存到当前浏览器 localStorage，也可以手动点击保存。不包含导出或后端。
-- Delete / Backspace 删除；Ctrl/Cmd + Z 撤销；Ctrl/Cmd + Shift + Z 重做；Ctrl/Cmd + D 复制；Ctrl/Cmd + S 保存；Escape 取消选择或当前拖动。文本框内保留原生编辑快捷键。
+- **12px 网格**：80×60 格，画布为 960×720px。拖放按网格吸附；属性面板按像素输入。保留旧 8px 布局的精确位置，不强制舍入。
+- **多选排版**：Shift 点击、框选、整体移动、六种对齐与水平 / 垂直等间距分布。整次校验和提交，单步撤销。
+- **真实容器**：自由、Flex、Grid 三种布局；多层嵌套、跨层拖动、父容器选择、层级导航、子项顺序调整及解散容器。
+- **我的组合**：保存选区与完整子树为本地快照，支持拖入复用、独立副本、重命名和删除。
+- **右键菜单**：按空白画布、单选、多选和素材类别提供操作。支持「更多」、菜单键和 Shift + F10。文本编辑区域保留原生菜单。
+- **独立样式**：背景、文字、边框和强调色；HEX、拾色器、配色预设、对比度提示。圆角默认 0px，并可设置圆角、边框粗细和样式。
+- **编辑 / 预览**：编辑模式接管布局，预览模式允许操作组件内部控件。支持缩放、复制、删除、历史记录与本地自动保存。
 
-## 设计约定
+## 约束与数据安全
 
-近黑色底色、低对比浅蓝网格、紧凑工具面板。浅蓝用于选中、吸附与操作焦点；错误落点同时用文字提示。桌面端采用三栏布局，窄屏面板改为可展开区域，画布保持逻辑尺寸并允许滚动。
-
-网格嵌入与组件内部自适应分离：编辑器控制外壳的网格位置，组件按容器大小布局，不通过整体缩放改变文字。第一版禁止重叠，不实现自动推挤、自动填洞、分组与嵌套。
+- 自由布局同级不能重叠；父子包含不视为碰撞。对齐、分布、组合和换层若会越界或碰撞，整次取消，不自动推挤。
+- 自动布局按真实 CSS 排版，空间不足时在容器内滚动。当前没有子项 flex-grow 或 Grid 跨行跨列配置。
+- 最多 8 层容器嵌套、300 个节点 / 工作区和 50 个本地组合；容器不能成为自己或后代的子项。
+- 现有原生 div / section 素材仍为标签演示，承载子项请使用新增的「布局容器」。
+- Shadow DOM 是样式封装，不是安全沙箱。只渲染可信模板，用户文案使用 textContent，不执行任意 HTML / JavaScript。
+- 保存仅覆盖当前站点与当前浏览器；不提供跨标签页冲突合并、跨设备同步、导出或后端。
 
 ## 架构
 
 ```text
-blank/
-  index.html
-  src/
-    main.ts                 # 启动与装配
-    styles.css              # 编辑器界面与视觉变量
-    core/
-      grid.ts               # 8px 网格、旧网格与目录尺寸换算
-      model.ts              # 文档、网格运算、校验与版本迁移
-      store.ts              # 历史记录与持久化
-      model.test.ts
-    editor/
-      editor.ts             # 画布、选择、组件渲染
-      gestures.ts           # Pointer Events 拖放与坐标换算
-      panels.ts             # 素材搜索、类型与分类筛选
-      inspector.ts          # 属性与配色面板
-      color-controls.ts     # 拾色器、HEX 与对比度提示
-      shape-controls.ts     # 圆角与边框设置
-    components/
-      contract.ts           # 框架无关组件协议
-      registry.ts           # 组件注册表
-      colors.ts             # 颜色默认值、配色与校验
-      shape.ts              # 圆角、边框默认值与校验
-      native/               # 按类别组织的原生标签素材
-      common/               # 组合组件与交互生命周期
-      button/               # 独立组件
-      card/
-      metric/
-      input/
-server.ts                   # Bun 开发服务器
+blank/src/
+  main.ts
+  styles.css / catalogue.css / workbench.css
+  core/
+    grid.ts                 # 12px 网格及 v1 / v2 网格定义
+    types.ts                # 文档、父子关系、容器配置
+    model.ts                # 创建、解析、迁移与校验
+    tree.ts                 # 层级、边界、同级碰撞与循环检测
+    operations.ts           # 批量移动、对齐、分布、组合与子树复制
+    combinations.ts         # 本地组合快照与持久化
+    store.ts                # 历史记录和工作区持久化
+  editor/
+    editor.ts               # 事务、选区与工作台装配
+    canvas-renderer.ts      # 真实 DOM / slot / Flex / Grid
+    gestures.ts             # 多选拖动、框选、换层与排序
+    panels.ts               # 素材分类与搜索
+    inspector.ts            # 属性、样式与层级
+    layout-panel.ts / layers.ts
+    context-menu.ts / selection-actions.ts
+    combination-dialogs.ts / combination-tiles.ts
+    color-controls.ts / shape-controls.ts
+  components/
+    contract.ts / registry.ts
+    colors.ts / shape.ts
+    container/
+    native/ / common/
+    button/ / card/ / metric/ / input/
+scripts/
+  browser-check.ts          # 浏览器与 axe 总入口
+  workbench-check.ts        # 多选、嵌套、组合和右键
+  nesting-drag-check.ts     # 跨层拖动与删除恢复
 ```
 
-原有独立组件按目录组织；大量原生标签与组合素材按类别放入模块，并复用工厂函数，每个实例仍拥有独立 Shadow Root。所有组件通过创建函数返回 `update` / `destroy` 生命周期。组件使用 Shadow DOM 隔离样式，但它不是安全沙箱，不支持执行外部不可信代码。编辑器与具体组件通过注册表和协议解耦，后续可接入 Vue / React 适配器，不要求重写网格算法。
+组件通过 `mount / update / destroy` 与编辑器解耦。布局容器使用 Shadow DOM 内的 slot 让真实子节点参与 CSS 排版，而不是把组件渲染成图片。目录源尺寸沿用 24px 设计单位，由注册表统一转换为当前网格单位。
 
-保存格式包含 `schemaVersion`、网格配置、画布配色 `appearance` 和组件实例数组。当前版本为 v2（8px 网格）；加载旧 v1（24px 网格）时，将位置和尺寸的网格值乘以 3，保留像素位置、尺寸、ID、内容及样式。旧版记录同时补齐新增属性；保存后写为 v2，再次加载不会重复换算。存储键沿用旧名称以便发现已有记录。实例保存唯一 `id`、组件 `type`、`col`、`row`、`colSpan`、`rowSpan`、`props`。不保存 DOM、函数或框架实例。加载时校验数据、边界、组件类型与重叠关系，损坏数据不会直接渲染。
+## 保存与迁移
 
-## 验证与限制
+当前文档格式为 **schemaVersion 3**，保存网格、画布配色、组件列表、`parentId` 与容器 `layout`。同级数组顺序决定自动布局顺序；自动布局中的几何尺寸为请求尺寸。
 
-已通过 28 项 Bun 测试（含全部素材的唯一类型、网格尺寸和文档还原矩阵，共 834 次断言）、TypeScript 严格模式检查与生产构建。颜色与形状校验、旧记录迁移、样式历史记录与危险 URL 协议均有测试。
+读取 v1（24px）、v2（8px）时，按实际像素换算为 12px 格数，保留亚网格坐标、ID、文案、样式与尺寸，并补齐根级父子关系。再次加载 v3 不重复迁移。存储键沿用 `componentweb.document.v1`，以便发现已有记录。
 
-已使用 Chromium 自动化实测新增、组件属性更新、键盘移动、撤销、75% 缩放拖动、碰撞回滚、尺寸调整、保存恢复、预览交互、组件库拖入与删除恢复；检查 320 / 768 / 1024 / 1440px 页面无横向溢出，并检查桌面和窄屏截图。可复现浏览器脚本逐项验证全部 137 项素材的添加、真实标签渲染、预览与销毁，另验证组件和画布改色、颜色撤销重做、非法 HEX、保存恢复、标签页键盘交互、开关、分页、对话框和表单。滚动回归覆盖五档视口、滚轮、键盘、触屏滑动及底部素材拖入；形状回归验证全部素材默认直角，以及圆角、边框、预设、非法输入、复制、预览、撤销重做和保存恢复。细网格回归验证旧布局像素几何不变、8px 移动与调整尺寸、75% 缩放拖动、碰撞检查、撤销重做及 v2 保存恢复。axe 对初始工作台、23 项组合/基础组件预览及 7 项代表性原生标签共 31 个场景执行 WCAG 2 A / AA、2.1 AA 规则扫描，无自动扫描告警。自动扫描不等于完整无障碍认证，真实触屏设备、读屏器及其他浏览器仍需人工验收。
+「我的组合」单独保存在 `componentweb.combinations.v1`，插入时重建全部 ID 和父子引用。存储失败不会伪报成功；解析会校验组件类型、样式、布局、重复 ID、孤儿、循环和层级深度。
 
-编辑模式下组件内容设为 `inert`，避免内部按钮或输入框抢占键盘焦点；预览时解除限制。自动保存仅限当前浏览器，不代表跨设备同步；同源多标签页不提供冲突合并。
+## 验证
+
+已通过 40 项 Bun 单元测试、900 次断言及类型检查；覆盖网格迁移、碰撞、多选排版、树结构、样式、组合快照及存储失败。浏览器回归覆盖所有内置素材，另外实测多选、框选、批量撤销、Flex / Grid、子项排序、嵌套拖入 / 移出、组合保存与独立副本、右键键盘导航、滚轮 / 触屏滚动和四档响应式。
+
+axe 对编辑器、代表性原生标签、组合组件和嵌套布局执行自动检查。自动检查不代替真实读屏器、其他浏览器及触屏设备的人工验收。
+
+当前 Bun CSS 压缩器可能对标准 `::details-content` 选择器发出警告，但会保留该规则；组件库另有整面板滚动回退。开发与生产构建均需通过滚动回归检查。

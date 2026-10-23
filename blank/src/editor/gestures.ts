@@ -1,101 +1,127 @@
-import { canPlace, createNode, GRID, snap, type Placement } from '../core/model';
+import { createNode, GRID, type Placement } from '../core/model';
 import { registry } from '../components/registry';
+import { bounds, childrenOf, descendants, validateTree } from '../core/tree';
+import { cloneForest, reorderNodes } from '../core/operations';
+import { isContainer } from '../core/types';
+import type { Combinations } from '../core/combinations';
 import { Editor, toast } from './editor';
 
-interface Gesture {
-  pointer: number;
-  kind: 'add' | 'move' | 'resize';
-  initial: Placement;
-  candidate: Placement;
-  x: number;
-  y: number;
-  active: boolean;
-  inside: boolean;
-  valid: boolean;
-  element: HTMLElement;
-}
-
-export function setupGestures(editor: Editor) {
-  let gesture: Gesture | undefined;
-  const point = (event: PointerEvent) => {
-    const rect = editor.canvas.getBoundingClientRect();
-    return { x: (event.clientX - rect.left) / editor.zoom, y: (event.clientY - rect.top) / editor.zoom };
+export function setupGestures(editor: Editor, combinations: Combinations) {
+  type State = {
+    pointer: number; kind: 'add' | 'move' | 'resize' | 'marquee'; x: number; y: number; active: boolean;
+    roots: Placement[]; added: Placement[]; worlds: Map<string, ReturnType<Editor['logicalRect']>>;
+    candidate: Placement[]; valid: boolean; parentId: string | null; element: HTMLElement; selection: Set<string>;
   };
+  let state: State | undefined;
+  const marquee = document.createElement('div'); marquee.className = 'marquee'; marquee.hidden = true; editor.canvas.append(marquee);
+  const point = (event: PointerEvent) => { const rect = editor.canvas.getBoundingClientRect(); return { x: (event.clientX - rect.left) / editor.zoom / GRID.cell, y: (event.clientY - rect.top) / editor.zoom / GRID.cell }; };
+  function dropTarget(event: PointerEvent, excluded: Set<string>) {
+    for (const hit of document.elementsFromPoint(event.clientX, event.clientY)) {
+      let element = hit.closest<HTMLElement>('.node');
+      while (element) {
+        const node = editor.store.doc.nodes.find(node => node.id === element!.dataset.id);
+        if (node && isContainer(node) && !excluded.has(node.id)) return node.id;
+        element = element.parentElement?.closest<HTMLElement>('.node') ?? null;
+      }
+    }
+    return null;
+  }
   document.addEventListener('pointerdown', event => {
-    if (editor.preview || event.button !== 0 || gesture) return;
+    if (editor.preview || event.button !== 0 || state) return;
     const target = event.target as HTMLElement;
-    if (target.closest('.component-tile button')) return;
+    if (target.closest('.component-tile button,.node-label button')) return;
     const tile = target.closest<HTMLElement>('.component-tile');
     const element = target.closest<HTMLElement>('.node');
-    if (!tile && !element) return;
-    const node = tile ? createNode(tile.dataset.type!) : editor.store.doc.nodes.find(node => node.id === element!.dataset.id)!;
-    const position = point(event);
-    if (!tile) editor.select(node.id);
-    gesture = {
-      pointer: event.pointerId,
-      kind: tile ? 'add' : target.closest('.resize-handle') ? 'resize' : 'move',
-      initial: structuredClone(node), candidate: structuredClone(node),
-      x: position.x, y: position.y, active: false, inside: false, valid: false,
-      element: tile ?? element!,
-    };
-    gesture.element.setPointerCapture(event.pointerId);
-    if (!target.closest('button')) event.preventDefault();
-  });
-
-  document.addEventListener('pointermove', event => {
-    if (!gesture || event.pointerId !== gesture.pointer) return;
-    const p = point(event);
-    const dx = p.x - gesture.x;
-    const dy = p.y - gesture.y;
-    if (!gesture.active && Math.hypot(dx, dy) * editor.zoom < 4) return;
-    gesture.active = true;
-    document.body.classList.add('gesture-active');
-    if (gesture.kind !== 'add') gesture.element.classList.add('dragging');
-    const node = { ...gesture.initial };
-    const viewport = document.getElementById('viewport')!.getBoundingClientRect();
-    gesture.inside = event.clientX >= viewport.left && event.clientX <= viewport.right && event.clientY >= viewport.top && event.clientY <= viewport.bottom;
-    if (gesture.kind === 'add') {
-      node.col = snap(p.x - GRID.cell * node.colSpan / 2);
-      node.row = snap(p.y - GRID.cell * node.rowSpan / 2);
-    } else if (gesture.kind === 'move') {
-      node.col += snap(dx);
-      node.row += snap(dy);
-    } else {
-      const min = registry.get(node.type)!.min;
-      node.colSpan = Math.max(min[0], node.colSpan + snap(dx));
-      node.rowSpan = Math.max(min[1], node.rowSpan + snap(dy));
+    const node = editor.store.doc.nodes.find(node => node.id === element?.dataset.id);
+    const background = event.target === editor.canvas || (node && isContainer(node) && event.composedPath().some(part => part instanceof HTMLElement && part === editor.renderer.content(node.id)) && element?.dataset.id === node.id);
+    if (!tile && !element && !background) return;
+    if (!tile && !background && node && event.shiftKey) { event.preventDefault(); editor.select(node.id, true); return; }
+    const p = point(event); const oldSelection = new Set(editor.selectedIds);
+    let roots: Placement[] = [], added: Placement[] = [];
+    let kind: State['kind'] = background ? 'marquee' : target.closest('.resize-handle') ? 'resize' : tile ? 'add' : 'move';
+    if (tile) {
+      if (tile.dataset.combination) {
+        const snapshot = combinations.items.find(item => item.id === tile.dataset.combination)?.document;
+        if (!snapshot) return;
+        const clone = cloneForest(snapshot.nodes, snapshot.nodes.filter(item => !item.parentId).map(item => item.id));
+        added = clone.nodes; roots = added.filter(item => clone.roots.includes(item.id));
+      } else { roots = [createNode(tile.dataset.type!)]; added = roots; }
+    } else if (background) { if (!event.shiftKey) editor.setSelection([]); }
+    else if (node) {
+      if (!editor.selectedIds.has(node.id)) editor.select(node.id);
+      roots = editor.selection;
+      if (kind === 'resize' && roots.length !== 1) return;
+      element!.dataset.pointerFocus = 'true'; element!.focus({ preventScroll: true }); delete element!.dataset.pointerFocus;
     }
-    gesture.candidate = node;
-    gesture.valid = gesture.inside && canPlace(node, editor.store.doc.nodes);
-    const ghost = editor.ghost;
-    ghost.hidden = !gesture.inside;
-    ghost.classList.toggle('invalid', !gesture.valid);
-    Object.assign(ghost.style, {
-      left: `${node.col * GRID.cell}px`, top: `${node.row * GRID.cell}px`,
-      width: `${node.colSpan * GRID.cell}px`, height: `${node.rowSpan * GRID.cell}px`,
-    });
-    ghost.querySelector('span')!.textContent = gesture.valid
-      ? `${node.colSpan * GRID.cell} × ${node.rowSpan * GRID.cell} px · ${node.col * GRID.cell}, ${node.row * GRID.cell}`
-      : '无法放置 · 重叠或超出边界';
+    state = { pointer: event.pointerId, kind, x: p.x, y: p.y, active: false, roots, added,
+      worlds: new Map(roots.map(item => [item.id, kind === 'add' ? { col: item.col, row: item.row, colSpan: item.colSpan, rowSpan: item.rowSpan } : editor.logicalRect(item.id)])),
+      candidate: [], valid: false, parentId: background && node ? node.id : null, element: tile ?? element ?? editor.canvas, selection: background && !event.shiftKey ? new Set() : oldSelection };
+    state.element.setPointerCapture(event.pointerId);
+    event.preventDefault();
   });
-
+  document.addEventListener('pointermove', event => {
+    if (!state || event.pointerId !== state.pointer) return;
+    const s = state; const p = point(event);
+    if (!s.active && Math.hypot(p.x - s.x, p.y - s.y) * GRID.cell * editor.zoom < 4) return;
+    s.active = true; document.body.classList.add('gesture-active');
+    if (s.kind === 'marquee') {
+      const box = { col: Math.min(s.x, p.x), row: Math.min(s.y, p.y), colSpan: Math.abs(p.x - s.x), rowSpan: Math.abs(p.y - s.y) };
+      Object.assign(marquee.style, { left: `${box.col * GRID.cell}px`, top: `${box.row * GRID.cell}px`, width: `${box.colSpan * GRID.cell}px`, height: `${box.rowSpan * GRID.cell}px` }); marquee.hidden = false;
+      const found = childrenOf(editor.store.doc.nodes, s.parentId).filter(node => { const rect = editor.logicalRect(node.id); return rect.col < box.col + box.colSpan && rect.col + rect.colSpan > box.col && rect.row < box.row + box.rowSpan && rect.row + rect.rowSpan > box.row; });
+      editor.setSelection([...s.selection, ...found.map(node => node.id)].filter(id => s.selection.has(id) || found.some(node => node.id === id)));
+      return;
+    }
+    const excluded = descendants(editor.store.doc.nodes, s.roots.map(node => node.id));
+    if (s.kind !== 'add') for (const id of excluded) editor.renderer.element(id)?.classList.add('dragging');
+    const parentId = s.kind === 'resize' ? s.roots[0].parentId : dropTarget(event, excluded);
+    document.querySelectorAll('.drop-target').forEach(element => element.classList.remove('drop-target'));
+    if (parentId) editor.renderer.element(parentId)?.classList.add('drop-target');
+    const parent = editor.store.doc.nodes.find(node => node.id === parentId);
+    const origin = editor.origin(parentId); const dx = Math.round(p.x - s.x), dy = Math.round(p.y - s.y);
+    const rootIds = new Set(s.roots.map(node => node.id));
+    const updates = new Map<string, Placement>();
+    for (const node of s.roots) {
+      const world = s.worlds.get(node.id)!;
+      const candidate = { ...node, parentId };
+      if (s.kind === 'resize') {
+        const min = registry.get(node.type)!.min;
+        candidate.colSpan = Math.max(min[0], node.colSpan + dx); candidate.rowSpan = Math.max(min[1], node.rowSpan + dy);
+      } else if (parent && parent.layout?.mode !== 'free') { candidate.col = 0; candidate.row = 0; }
+      else if (s.kind === 'add') { candidate.col = Math.round(p.x - origin.col - node.colSpan / 2); candidate.row = Math.round(p.y - origin.row - node.rowSpan / 2); }
+      else { candidate.col = world.col + dx - origin.col; candidate.row = world.row + dy - origin.row; }
+      updates.set(node.id, candidate);
+    }
+    let nodes = [...editor.store.doc.nodes, ...s.added].map(node => updates.get(node.id) ?? node);
+    if (parent && parent.layout?.mode !== 'free') {
+      const siblings = childrenOf(editor.store.doc.nodes, parent.id).filter(node => !rootIds.has(node.id));
+      const before = siblings.find(node => {
+        const rect = editor.renderer.element(node.id)!.getBoundingClientRect();
+        if (parent.layout!.mode === 'grid') return event.clientY < rect.top || (event.clientY <= rect.bottom && event.clientX < rect.left + rect.width / 2);
+        return parent.layout!.direction === 'row' ? event.clientX < rect.left + rect.width / 2 : event.clientY < rect.top + rect.height / 2;
+      });
+      nodes = reorderNodes(nodes, rootIds, before?.id ?? null);
+    }
+    const viewport = document.getElementById('viewport')!.getBoundingClientRect();
+    const inside = event.clientX >= viewport.left && event.clientX <= viewport.right && event.clientY >= viewport.top && event.clientY <= viewport.bottom;
+    s.candidate = nodes; s.valid = inside && !validateTree(nodes);
+    const preview = bounds([...updates.values()].map(node => ({ ...node, col: node.col + origin.col, row: node.row + origin.row })));
+    if (parent && parent.layout?.mode !== 'free') { preview.col = p.x - preview.colSpan / 2; preview.row = p.y - preview.rowSpan / 2; }
+    Object.assign(editor.ghost.style, { left: `${preview.col * GRID.cell}px`, top: `${preview.row * GRID.cell}px`, width: `${preview.colSpan * GRID.cell}px`, height: `${preview.rowSpan * GRID.cell}px` });
+    editor.ghost.hidden = !inside; editor.ghost.classList.toggle('invalid', !s.valid);
+    editor.ghost.querySelector('span')!.textContent = s.valid ? parent && parent.layout?.mode !== 'free' ? `放入 ${parent.layout!.mode.toUpperCase()} · 自动排版 / 调整顺序` : `${s.roots.length} 项 · ${Math.round(preview.colSpan * GRID.cell)} × ${Math.round(preview.rowSpan * GRID.cell)} px` : '无法放置 · 重叠、越界或循环嵌套';
+  });
   function finish(commit: boolean) {
-    if (!gesture) return;
-    const current = gesture;
-    gesture = undefined;
-    editor.ghost.hidden = true;
-    current.element.classList.remove('dragging');
-    document.body.classList.remove('gesture-active');
-    if (current.element.hasPointerCapture(current.pointer)) current.element.releasePointerCapture(current.pointer);
-    if (!commit || !current.active) return;
-    if (current.valid) {
-      if (current.kind === 'add') editor.add(current.candidate.type, current.candidate);
-      else editor.update(current.candidate);
-    } else toast('放置已取消：组件不能重叠或超出画布');
+    if (!state) return;
+    const s = state; state = undefined; editor.ghost.hidden = true; marquee.hidden = true;
+    document.querySelectorAll('.dragging,.drop-target').forEach(element => element.classList.remove('dragging', 'drop-target')); document.body.classList.remove('gesture-active');
+    if (s.element.hasPointerCapture(s.pointer)) s.element.releasePointerCapture(s.pointer);
+    if (s.kind === 'marquee') { if (!s.active && s.parentId && commit) editor.select(s.parentId); return; }
+    if (!commit || !s.active) return;
+    if (s.valid) editor.commit(s.candidate, s.roots.map(node => node.id));
+    else toast('放置已取消：请检查同级重叠、边界或容器嵌套');
   }
-  document.addEventListener('pointerup', event => { if (event.pointerId === gesture?.pointer) finish(true); });
-  document.addEventListener('pointercancel', event => { if (event.pointerId === gesture?.pointer) finish(false); });
-  document.addEventListener('lostpointercapture', event => { if (event.pointerId === gesture?.pointer) finish(false); });
+  document.addEventListener('pointerup', event => { if (event.pointerId === state?.pointer) finish(true); });
+  for (const name of ['pointercancel', 'lostpointercapture'] as const) document.addEventListener(name, event => { if (event.pointerId === state?.pointer) finish(false); });
   window.addEventListener('blur', () => finish(false));
   document.addEventListener('keydown', event => { if (event.key === 'Escape') finish(false); });
   return { cancel: () => finish(false) };

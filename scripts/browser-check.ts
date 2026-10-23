@@ -6,6 +6,8 @@ import { STORAGE_KEY } from '../blank/src/core/store';
 import { checkLibraryScroll } from './library-scroll-check';
 import { checkShapeSettings } from './shape-check';
 import { checkFineGrid } from './grid-check';
+import { checkWorkbench } from './workbench-check';
+import { checkNestingDrag } from './nesting-drag-check';
 
 const port = 3107;
 const url = `http://127.0.0.1:${port}`;
@@ -39,6 +41,8 @@ try {
   await checkLibraryScroll(page);
   await checkShapeSettings(page);
   await checkFineGrid(page);
+  await checkNestingDrag(page);
+  await checkWorkbench(page);
   await audit(page, '初始工作台');
   await page.getByRole('button', { name: 'HTML 标签', exact: true }).click();
   assert(await page.locator('.component-tile').count() === components.filter(item => item.type.startsWith('html.')).length, 'HTML 分类计数');
@@ -91,7 +95,7 @@ try {
       assert(await page.locator(`.component-host ${tag}`).count() > 0, `${definition.type} 包含真实 ${tag} 元素`);
     }
     await page.locator('.node').click();
-    const surface = page.locator('.component-host').locator('.frame, .box, article, button, input').first();
+    const surface = page.locator('.component-host').locator('.frame, .box, .container-surface, article, button, input').first();
     assert(await surface.evaluate(element => getComputedStyle(element).borderTopLeftRadius) === '0px', `${definition.type} 默认直角`);
     if (['ui.table', 'html.input'].includes(definition.type)) {
       await page.locator('#prop-radius').fill('8'); await page.locator('#prop-radius').press('Tab');

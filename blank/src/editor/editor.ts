@@ -1,191 +1,158 @@
-import { registry } from '../components/registry';
-import { canPlace, createNode, findSpace, GRID, type Placement } from '../core/model';
-import { Store } from '../core/store';
-import type { Props } from '../components/contract';
-import { isColor } from '../components/colors';
-import { isValidShape, shapeOf } from '../components/shape';
-import type { DEFAULT_APPEARANCE } from '../core/model';
+import { createNode, findSpace, GRID, parseDocument, type Document, type Placement } from '../core/model';
 import { CANVAS } from '../core/grid';
-
-export const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
-let toastTimer: ReturnType<typeof setTimeout>;
-export function toast(message: string) {
-  const target = $('toast');
-  target.textContent = message;
-  target.hidden = false;
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { target.hidden = true; }, 3500);
-}
-
-type Mounted = { element: HTMLElement; instance: ReturnType<NonNullable<ReturnType<typeof registry.get>>['mount']> };
+import { Store } from '../core/store';
+import { bounds, childrenOf, descendants, topSelection } from '../core/tree';
+import { isContainer, type ContainerLayout } from '../core/types';
+import { alignNodes, cloneForest, distributeNodes, groupNodes, moveNodes, placeForest, reorderNodes, type Alignment } from '../core/operations';
+import type { Props } from '../components/contract';
+import { CanvasRenderer } from './canvas-renderer';
+import { $, toast } from './dom';
+export { $, toast } from './dom';
 
 export class Editor {
-  selected: string | null = null;
+  selectedIds = new Set<string>();
   preview = false;
   zoom = 1;
   readonly canvas = $('canvas');
   readonly ghost = $('ghost');
-  private mounted = new Map<string, Mounted>();
-  private colorPreviewId: string | null = null;
+  readonly renderer: CanvasRenderer;
   onSelection = () => {};
-
+  onSaveCombination = () => {};
+  private colorPreviewId: string | null = null;
   constructor(readonly store: Store) {
-    this.canvas.style.width = `${CANVAS.width}px`;
-    this.canvas.style.height = `${CANVAS.height}px`;
-    this.canvas.style.setProperty('--grid-cell', `${GRID.cell}px`);
-    this.canvas.style.setProperty('--grid-major', `${GRID.cell * 6}px`);
-    $('grid-dimensions').textContent = `${GRID.cols} × ${GRID.rows}`;
-    $('grid-cell-label').textContent = `${GRID.cell} px 网格`;
+    this.renderer = new CanvasRenderer(this.canvas, id => { if (!this.preview && !this.selectedIds.has(id)) this.select(id); });
+    Object.assign(this.canvas.style, { width: `${CANVAS.width}px`, height: `${CANVAS.height}px` });
+    this.canvas.style.setProperty('--grid-cell', `${GRID.cell}px`); this.canvas.style.setProperty('--grid-major', '48px');
+    $('grid-dimensions').textContent = `${GRID.cols} × ${GRID.rows}`; $('grid-cell-label').textContent = `${GRID.cell} px 网格`;
     this.setZoom(1);
     store.subscribe(() => this.render());
-    this.canvas.addEventListener('pointerdown', event => {
-      if (event.target === this.canvas && !this.preview) this.select(null);
-    });
     this.canvas.addEventListener('component-action', event => toast(String((event as CustomEvent).detail || '操作已触发')));
     this.render();
   }
-
-  get node() { return this.store.doc.nodes.find(node => node.id === this.selected); }
-  select(id: string | null) {
-    if (this.colorPreviewId) {
-      const node = this.store.doc.nodes.find(node => node.id === this.colorPreviewId);
-      if (node) this.mounted.get(node.id)?.instance.update(node.props);
-      this.colorPreviewId = null;
-    }
+  get selected() { return [...this.selectedIds].at(-1) ?? null; }
+  get selection() { return topSelection(this.store.doc.nodes, this.selectedIds); }
+  get node() { return this.selectedIds.size === 1 ? this.store.doc.nodes.find(node => node.id === this.selected) : undefined; }
+  select(id: string | null, toggle = false) {
+    if (this.preview) return;
+    const ids = toggle ? new Set(this.selectedIds) : new Set<string>();
+    if (id) { if (toggle && ids.has(id)) ids.delete(id); else ids.add(id); }
+    this.setSelection(ids);
+  }
+  setSelection(ids: Iterable<string>) {
+    if (this.colorPreviewId) { const node = this.store.doc.nodes.find(node => node.id === this.colorPreviewId); if (node) this.renderer.preview(node.id, node.props); this.colorPreviewId = null; }
     this.applyAppearance(this.store.doc.appearance);
-    this.selected = id;
-    this.renderSelection();
-    this.onSelection();
+    this.selectedIds = new Set(topSelection(this.store.doc.nodes, ids).map(node => node.id));
+    this.renderer.selection(this.store.doc.nodes, this.selectedIds, this.preview);
+    this.selectionStatus(); this.onSelection();
   }
-  private renderSelection() {
-    for (const [id, mounted] of this.mounted) {
-      const selected = id === this.selected && !this.preview;
-      mounted.element.classList.toggle('selected', selected);
-      const node = this.store.doc.nodes.find(node => node.id === id)!;
-      const title = registry.get(node.type)!.title;
-      mounted.element.setAttribute('aria-label', this.preview ? `${title}，预览` : `${title}${selected ? '，已选中' : ''}，按方向键移动，右侧面板可调整尺寸`);
-      mounted.element.querySelector<HTMLElement>('.node-label')!.hidden = !selected;
-      mounted.element.querySelector<HTMLElement>('.resize-handle')!.hidden = !selected;
-    }
-    $('selection-status').textContent = this.node
-      ? `${registry.get(this.node.type)!.title} · ${this.node.colSpan * GRID.cell} × ${this.node.rowSpan * GRID.cell} px`
-      : '未选择组件';
+  selectAll(parentId: string | null = null) { this.setSelection(childrenOf(this.store.doc.nodes, parentId).map(node => node.id)); }
+  private selectionStatus() {
+    $('selection-status').textContent = this.selectedIds.size > 1 ? `已选择 ${this.selectedIds.size} 个组件 · Shift 点击增减选择` : this.node ? `${this.node.props.title || '组件'} · ${this.renderer.element(this.node.id)?.offsetWidth} × ${this.renderer.element(this.node.id)?.offsetHeight} px` : '未选择组件 · 空白处拖动框选';
+    document.querySelectorAll<HTMLButtonElement>('[data-selection-action]').forEach(button => { button.disabled = this.preview || !this.selectedIds.size; });
   }
-
-  previewColors(id: string, props: Props) {
-    this.colorPreviewId = id;
-    this.mounted.get(id)?.instance.update(props);
-  }
-  applyAppearance(appearance: typeof DEFAULT_APPEARANCE) {
-    this.canvas.style.setProperty('--canvas-background', appearance.background);
-    this.canvas.style.setProperty('--canvas-grid', appearance.grid);
-  }
+  previewColors(id: string, props: Props) { this.colorPreviewId = id; this.renderer.preview(id, props); }
+  applyAppearance(appearance: Document['appearance']) { this.canvas.style.setProperty('--canvas-background', appearance.background); this.canvas.style.setProperty('--canvas-grid', appearance.grid); }
   render() {
-    this.colorPreviewId = null;
-    this.applyAppearance(this.store.doc.appearance);
-    const ids = new Set(this.store.doc.nodes.map(node => node.id));
-    for (const [id, mounted] of this.mounted) {
-      if (!ids.has(id)) { mounted.instance.destroy(); mounted.element.remove(); this.mounted.delete(id); }
-    }
-    if (this.selected && !ids.has(this.selected)) this.selected = null;
-    for (const node of this.store.doc.nodes) {
-      let mounted = this.mounted.get(node.id);
-      const definition = registry.get(node.type)!;
-      if (!mounted) {
-        const element = document.createElement('div');
-        element.className = 'node';
-        element.dataset.id = node.id;
-        element.tabIndex = this.preview ? -1 : 0;
-        element.setAttribute('role', 'group');
-        element.setAttribute('aria-label', `${definition.title}，按方向键移动，右侧面板可调整尺寸`);
-        const label = document.createElement('span');
-        label.className = 'node-label';
-        const host = document.createElement('div');
-        host.className = 'component-host';
-        host.inert = !this.preview;
-        const handle = document.createElement('button');
-        handle.type = 'button';
-        handle.className = 'resize-handle';
-        handle.tabIndex = -1;
-        handle.setAttribute('aria-label', '拖动调整尺寸，也可使用右侧宽高输入框');
-        element.append(label, host, handle);
-        const instance = definition.mount(host, node.props);
-        mounted = { element, instance };
-        this.mounted.set(node.id, mounted);
-        this.canvas.append(element);
-        element.addEventListener('focus', () => { if (!this.preview && this.selected !== node.id) this.select(node.id); });
-        element.addEventListener('keydown', event => {
-          if ((event.key === 'Enter' || event.key === ' ') && !this.preview) { event.preventDefault(); this.select(node.id); }
-        });
-      }
-      mounted.element.style.left = `${node.col * GRID.cell}px`;
-      mounted.element.style.top = `${node.row * GRID.cell}px`;
-      mounted.element.style.width = `${node.colSpan * GRID.cell}px`;
-      mounted.element.style.height = `${node.rowSpan * GRID.cell}px`;
-      mounted.element.style.borderRadius = `${shapeOf(node.props).radius}px`;
-      mounted.element.querySelector('.node-label')!.textContent = `${definition.title} · ${node.colSpan * GRID.cell} × ${node.rowSpan * GRID.cell} px`;
-      mounted.instance.update(node.props);
-      // 小尺寸组件仍可用键盘滚动内部内容，不改变已有交互控件的 tabindex。
-      mounted.element.querySelector('.component-host')!.shadowRoot!.querySelectorAll<HTMLElement>('.box, .frame, article').forEach(region => {
-        const scrollable = region.scrollHeight > region.clientHeight || region.scrollWidth > region.clientWidth;
-        if (scrollable && !region.hasAttribute('tabindex')) { region.tabIndex = 0; region.dataset.scrollFocus = 'true'; }
-        else if (!scrollable && region.dataset.scrollFocus) { region.removeAttribute('tabindex'); delete region.dataset.scrollFocus; }
-      });
-    }
-    $('empty-state').hidden = this.store.doc.nodes.length > 0;
+    this.colorPreviewId = null; this.applyAppearance(this.store.doc.appearance);
+    this.selectedIds = new Set([...this.selectedIds].filter(id => this.store.doc.nodes.some(node => node.id === id)));
+    this.renderer.render(this.store.doc, this.selectedIds, this.preview);
+    $('empty-state').hidden = !!this.store.doc.nodes.length;
     $('node-count').textContent = `${this.store.doc.nodes.length} 个组件`;
-    $<HTMLButtonElement>('undo').disabled = !this.store.canUndo || this.preview;
-    $<HTMLButtonElement>('redo').disabled = !this.store.canRedo || this.preview;
-    this.renderSelection();
-    this.onSelection();
+    $<HTMLButtonElement>('undo').disabled = !this.store.canUndo || this.preview; $<HTMLButtonElement>('redo').disabled = !this.store.canRedo || this.preview;
+    this.selectionStatus(); this.onSelection();
   }
-
-  add(type: string, placement?: Placement) {
-    if (this.preview) { toast('请先退出预览模式'); return; }
-    const node = placement ?? findSpace(createNode(type), this.store.doc.nodes);
-    if (!node || !canPlace(node, this.store.doc.nodes)) { toast('没有可用位置，请为组件留出空间'); return; }
-    this.selected = node.id;
-    this.store.commit({ ...this.store.doc, nodes: [...this.store.doc.nodes, node] });
-    toast('组件已添加');
-  }
-  update(node: Placement) {
+  commit(nodes: Placement[], ids?: Iterable<string>) {
     if (this.preview) return false;
-    if (!canPlace(node, this.store.doc.nodes)) { toast('无法放置：请检查重叠、边界和最小尺寸'); return false; }
-    if (['accent', 'background', 'text', 'border'].some(key => !isColor(node.props[key as keyof Props]))) { toast('请输入有效的六位十六进制颜色'); return false; }
-    if (!isValidShape(node.props)) { toast('圆角或边框设置无效，请检查范围'); return false; }
-    this.store.commit({ ...this.store.doc, nodes: this.store.doc.nodes.map(other => other.id === node.id ? node : other) });
-    return true;
+    try {
+      const doc = parseDocument(JSON.stringify({ ...this.store.doc, nodes }));
+      const unchanged = JSON.stringify(doc) === JSON.stringify(this.store.doc);
+      if (ids) this.selectedIds = new Set(ids);
+      this.store.commit(doc);
+      if (unchanged) { this.renderer.selection(this.store.doc.nodes, this.selectedIds, this.preview); this.selectionStatus(); this.onSelection(); }
+      return true;
+    } catch (error) { toast(error instanceof Error ? error.message : '操作失败'); return false; }
   }
-  remove() {
-    if (!this.node || this.preview) return;
-    this.store.commit({ ...this.store.doc, nodes: this.store.doc.nodes.filter(node => node.id !== this.selected) });
-    toast('组件已删除，可撤销恢复');
+  attempt(action: () => Placement[], ids?: Iterable<string>) {
+    try { return this.commit(action(), ids); } catch (error) { toast((error as Error).message); return false; }
   }
+  add(type: string, placement?: Placement, parentId: string | null = null) {
+    if (this.preview) return;
+    const node = placement ?? findSpace({ ...createNode(type), parentId }, this.store.doc.nodes);
+    if (!node) { toast('没有可用空间，可调整容器尺寸或使用自动布局'); return; }
+    this.commit([...this.store.doc.nodes, node], [node.id]);
+  }
+  update(node: Placement) { return this.commit(this.store.doc.nodes.map(other => other.id === node.id ? node : other)); }
+  move(dx: number, dy: number) { return this.attempt(() => moveNodes(this.store.doc.nodes, this.selectedIds, dx, dy)); }
+  align(value: Alignment) { this.attempt(() => alignNodes(this.store.doc.nodes, this.selectedIds, value)); }
+  distribute(axis: 'x' | 'y') { this.attempt(() => distributeNodes(this.store.doc.nodes, this.selectedIds, axis)); }
+  group(mode: ContainerLayout['mode'] = 'free') {
+    try { const result = groupNodes(this.store.doc.nodes, this.selectedIds, mode); this.commit(result.nodes, [result.container.id]); } catch (error) { toast((error as Error).message); }
+  }
+  remove() { const all = descendants(this.store.doc.nodes, this.selectedIds); this.commit(this.store.doc.nodes.filter(node => !all.has(node.id)), []); }
   duplicate() {
-    if (!this.node || this.preview) return;
-    const copy = structuredClone(this.node);
-    copy.id = crypto.randomUUID();
-    const placement = findSpace(copy, this.store.doc.nodes);
-    if (!placement) { toast('没有足够空间复制组件'); return; }
-    this.add(copy.type, placement);
+    if (!this.selectedIds.size) return;
+    try {
+      const roots = this.selection;
+      if (roots.some(node => node.parentId !== roots[0].parentId)) throw new Error('复制时请选择同一父级的组件');
+      const copies = cloneForest(this.store.doc.nodes, this.selectedIds);
+      this.commit([...this.store.doc.nodes, ...placeForest(copies.nodes, copies.roots, this.store.doc.nodes, roots[0].parentId)], copies.roots);
+    } catch (error) { toast((error as Error).message); }
+  }
+  insertSnapshot(snapshot: Document, parentId: string | null = null, position?: { col: number; row: number }) {
+    try {
+      const copies = cloneForest(snapshot.nodes, snapshot.nodes.filter(node => !node.parentId).map(node => node.id));
+      this.commit([...this.store.doc.nodes, ...placeForest(copies.nodes, copies.roots, this.store.doc.nodes, parentId, position)], copies.roots);
+    } catch (error) { toast((error as Error).message); }
+  }
+  logicalRect(id: string) {
+    const rect = this.renderer.element(id)!.getBoundingClientRect(); const canvas = this.canvas.getBoundingClientRect();
+    return { col: (rect.left - canvas.left) / this.zoom / GRID.cell, row: (rect.top - canvas.top) / this.zoom / GRID.cell, colSpan: rect.width / this.zoom / GRID.cell, rowSpan: rect.height / this.zoom / GRID.cell };
+  }
+  origin(parentId: string | null) {
+    const target = this.renderer.content(parentId); const rect = target.getBoundingClientRect(); const canvas = this.canvas.getBoundingClientRect();
+    return { col: (rect.left - canvas.left) / this.zoom / GRID.cell - target.scrollLeft / GRID.cell, row: (rect.top - canvas.top) / this.zoom / GRID.cell - target.scrollTop / GRID.cell };
+  }
+  reparent(parentId: string | null) {
+    const roots = this.selection; const selected = new Set(roots.map(node => node.id));
+    if (parentId && descendants(this.store.doc.nodes, selected).has(parentId)) { toast('不能将组件放入自己或后代'); return; }
+    const origin = this.origin(parentId); const parent = this.store.doc.nodes.find(node => node.id === parentId);
+    const geometries = new Map(roots.map(node => [node.id, this.logicalRect(node.id)]));
+    this.commit(this.store.doc.nodes.map(node => selected.has(node.id) ? { ...node, parentId,
+      col: parent?.layout?.mode !== 'free' && parent ? 0 : geometries.get(node.id)!.col - origin.col,
+      row: parent?.layout?.mode !== 'free' && parent ? 0 : geometries.get(node.id)!.row - origin.row } : node));
+  }
+  ungroup() {
+    const node = this.node; if (!node || !isContainer(node)) return;
+    const origin = this.origin(node.parentId);
+    const geometries = new Map(childrenOf(this.store.doc.nodes, node.id).map(child => [child.id, this.logicalRect(child.id)]));
+    const nodes = this.store.doc.nodes.filter(other => other.id !== node.id).map(other => geometries.has(other.id) ? { ...other, parentId: node.parentId,
+      col: geometries.get(other.id)!.col - origin.col, row: geometries.get(other.id)!.row - origin.row,
+      colSpan: geometries.get(other.id)!.colSpan, rowSpan: geometries.get(other.id)!.rowSpan } : other);
+    this.commit(nodes, geometries.keys());
+  }
+  changeLayout(layout: ContainerLayout) {
+    const node = this.node; if (!node || !isContainer(node)) return;
+    let nodes = this.store.doc.nodes;
+    if (node.layout!.mode !== 'free' && layout.mode === 'free') {
+      const origin = this.origin(node.id);
+      const delta = (layout.padding - node.layout!.padding) / GRID.cell;
+      const positions = new Map(childrenOf(nodes, node.id).map(child => [child.id, this.logicalRect(child.id)]));
+      nodes = nodes.map(child => positions.has(child.id) ? { ...child, ...positions.get(child.id)!, col: positions.get(child.id)!.col - origin.col - delta, row: positions.get(child.id)!.row - origin.row - delta } : child);
+    }
+    if (!this.commit(nodes.map(other => other.id === node.id ? { ...other, layout } : other))) this.onSelection();
+  }
+  reorder(step: number) {
+    const roots = this.selection; if (!roots.length) return;
+    const siblings = childrenOf(this.store.doc.nodes, roots[0].parentId); const index = siblings.findIndex(node => node.id === roots[0].id);
+    const before = step < 0 ? siblings[Math.max(0, index - 1)]?.id ?? null : siblings[index + roots.length + 1]?.id ?? null;
+    this.commit(reorderNodes(this.store.doc.nodes, this.selectedIds, before));
   }
   setZoom(value: number) {
-    this.zoom = value;
-    this.canvas.style.transform = `scale(${value})`;
-    $('canvas-shell').style.width = `${GRID.cols * GRID.cell * value}px`;
-    $('canvas-shell').style.height = `${GRID.rows * GRID.cell * value}px`;
+    this.zoom = value; this.canvas.style.transform = `scale(${value})`;
+    $('canvas-shell').style.width = `${CANVAS.width * value}px`; $('canvas-shell').style.height = `${CANVAS.height * value}px`;
   }
   setPreview() {
-    this.preview = !this.preview;
-    document.body.classList.toggle('preview', this.preview);
-    $('preview').setAttribute('aria-pressed', String(this.preview));
-    $('preview').textContent = this.preview ? '✎ 返回编辑' : '▷ 预览';
-    $('mode-label').textContent = this.preview ? '预览模式' : '编辑模式';
-    for (const mounted of this.mounted.values()) {
-      mounted.element.tabIndex = this.preview ? -1 : 0;
-      mounted.element.querySelector<HTMLElement>('.component-host')!.inert = !this.preview;
-    }
-    this.render();
-    toast(this.preview ? '预览模式：可以操作组件内部控件' : '已返回编辑模式');
+    this.preview = !this.preview; document.body.classList.toggle('preview', this.preview);
+    $('preview').setAttribute('aria-pressed', String(this.preview)); $('preview').textContent = this.preview ? '✎ 返回编辑' : '▷ 预览'; $('mode-label').textContent = this.preview ? '预览模式' : '编辑模式'; this.render();
   }
 }

@@ -1,97 +1,84 @@
 import { registry } from '../components/registry';
-import type { Props } from '../components/contract';
 import { colorsOf, COLOR_FIELDS, isColor } from '../components/colors';
 import { isValidShape, shapeOf } from '../components/shape';
-
-import { GRID, LEGACY_GRID, matchesGrid } from './grid';
+import { GRID, LEGACY_GRID, FINE_GRID, matchesGrid } from './grid';
+import { DEFAULT_APPEARANCE, DEFAULT_LAYOUT, isContainer, type ContainerLayout, type Document, type Placement } from './types';
+import { contentSize, placementError, validateTree } from './tree';
 export { GRID } from './grid';
-export interface Placement {
-  id: string;
-  type: string;
-  col: number;
-  row: number;
-  colSpan: number;
-  rowSpan: number;
-  props: Props;
-}
-export const DEFAULT_APPEARANCE = { background: '#0c1520', grid: '#82c4ed' };
-export interface Document {
-  schemaVersion: 2;
-  appearance: typeof DEFAULT_APPEARANCE;
-  grid: typeof GRID;
-  nodes: Placement[];
-}
+export { DEFAULT_APPEARANCE, DEFAULT_LAYOUT, isContainer } from './types';
+export type { ContainerLayout, Document, Placement } from './types';
+export { overlaps } from './tree';
 export const snap = (pixels: number) => Math.round(pixels / GRID.cell);
-export const overlaps = (a: Placement, b: Placement) =>
-  a.col < b.col + b.colSpan && a.col + a.colSpan > b.col &&
-  a.row < b.row + b.rowSpan && a.row + a.rowSpan > b.row;
-
-export function canPlace(node: Placement, nodes: Placement[]): boolean {
-  const definition = registry.get(node.type);
-  if (!definition || ![node.col, node.row, node.colSpan, node.rowSpan].every(Number.isInteger)) return false;
-  return node.col >= 0 && node.row >= 0 &&
-    node.colSpan >= definition.min[0] && node.rowSpan >= definition.min[1] &&
-    node.col + node.colSpan <= GRID.cols && node.row + node.rowSpan <= GRID.rows &&
-    !nodes.some(other => other.id !== node.id && overlaps(node, other));
-}
+export const canPlace = (node: Placement, nodes: Placement[]) => !placementError(node, nodes);
 
 export function createNode(type: string): Placement {
   const definition = registry.get(type);
   if (!definition) throw new Error('未知组件');
   return {
-    id: crypto.randomUUID(), type, col: 0, row: 0,
+    id: crypto.randomUUID(), type, parentId: null, col: 0, row: 0,
     colSpan: definition.size[0], rowSpan: definition.size[1],
     props: { source: '', ...definition.defaults, ...colorsOf(definition.defaults), ...shapeOf(definition.defaults) },
+    ...(type === 'layout.container' ? { layout: { ...DEFAULT_LAYOUT } } : {}),
   };
 }
-
 export function findSpace(node: Placement, nodes: Placement[]): Placement | undefined {
-  for (let row = 0; row <= GRID.rows - node.rowSpan; row++) {
-    for (let col = 0; col <= GRID.cols - node.colSpan; col++) {
-      const candidate = { ...node, col, row };
-      if (canPlace(candidate, nodes)) return candidate;
-    }
+  const parent = nodes.find(other => other.id === node.parentId);
+  if (parent?.layout?.mode && parent.layout.mode !== 'free') return { ...node, col: 0, row: 0 };
+  const size = contentSize(parent);
+  // 保留亚网格的组件尺寸，空位仍按当前 12px 步长搜索。
+  for (let row = 0; row <= size.rows - node.rowSpan + 1e-6; row++) for (let col = 0; col <= size.cols - node.colSpan + 1e-6; col++) {
+    const candidate = { ...node, col, row };
+    if (canPlace(candidate, nodes)) return candidate;
   }
 }
-
+export function validLayout(value: unknown): value is ContainerLayout {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as ContainerLayout;
+  return ['free', 'flex', 'grid'].includes(v.mode) && ['row', 'column'].includes(v.direction) &&
+    [v.gap, v.padding].every(number => Number.isInteger(number) && number >= 0 && number <= 96) &&
+    Number.isInteger(v.columns) && v.columns >= 1 && v.columns <= 12 &&
+    ['start', 'center', 'end', 'stretch'].includes(v.align) && ['start', 'center', 'end', 'space-between'].includes(v.justify) && typeof v.wrap === 'boolean';
+}
 export function parseDocument(raw: string): Document {
   const doc = JSON.parse(raw);
-  const legacy = doc?.schemaVersion === 1 && matchesGrid(doc.grid, LEGACY_GRID);
-  const current = doc?.schemaVersion === 2 && matchesGrid(doc.grid, GRID);
-  if ((!legacy && !current) || !Array.isArray(doc.nodes) || doc.nodes.length > 300) throw new Error('存档格式不兼容');
-  const scale = legacy ? LEGACY_GRID.cell / GRID.cell : 1;
+  const v1 = doc?.schemaVersion === 1 && matchesGrid(doc.grid, LEGACY_GRID);
+  const v2 = doc?.schemaVersion === 2 && matchesGrid(doc.grid, FINE_GRID);
+  const current = doc?.schemaVersion === 3 && matchesGrid(doc.grid, GRID);
+  if ((!v1 && !v2 && !current) || !Array.isArray(doc.nodes) || doc.nodes.length > 300) throw new Error('存档格式不兼容');
+  const scale = (v1 ? LEGACY_GRID.cell : v2 ? FINE_GRID.cell : GRID.cell) / GRID.cell;
   const appearance = { ...DEFAULT_APPEARANCE, ...doc.appearance };
-  if ((doc.appearance !== undefined && (typeof doc.appearance !== 'object' || doc.appearance === null || Array.isArray(doc.appearance))) || !isColor(appearance.background) || !isColor(appearance.grid)) throw new Error('画布颜色无效');
+  if ((doc.appearance !== undefined && (!doc.appearance || typeof doc.appearance !== 'object' || Array.isArray(doc.appearance))) || !isColor(appearance.background) || !isColor(appearance.grid)) throw new Error('画布颜色无效');
   const nodes: Placement[] = [];
-  const ids = new Set<string>();
   for (const source of doc.nodes) {
-    // 迁移前也要校验整数，防止小数旧坐标乘倍数后意外变成合法数据。
-    if (!source || ![source.col, source.row, source.colSpan, source.rowSpan].every(Number.isInteger)) throw new Error('存档中的网格坐标无效');
-    const node = { ...source, col: source.col * scale, row: source.row * scale,
-      colSpan: source.colSpan * scale, rowSpan: source.rowSpan * scale };
-    if (typeof node.id !== 'string' || !node.id || ids.has(node.id) ||
-      typeof node.type !== 'string' || !node.props ||
-      !['title', 'description', 'accent'].every(key => typeof node.props[key] === 'string' && node.props[key].length <= 2000) ||
-      !isColor(node.props.accent) || !isValidShape(node.props) ||
-      COLOR_FIELDS.some(([key]) => node.props[key] !== undefined && !isColor(node.props[key])) ||
-      (node.props.source !== undefined && (typeof node.props.source !== 'string' || node.props.source.length > 2000)) ||
-      !canPlace(node, nodes)) throw new Error('存档中的组件数据无效');
-    const colors = colorsOf({ ...registry.get(node.type)!.defaults, ...node.props });
-    // v0.1 的操作按钮使用强调色作为填充色，迁移时保留原来的视觉。
-    if (node.type === 'basic.button' && node.props.background === undefined) colors.background = node.props.accent;
-    if (node.type === 'basic.button' && node.props.border === undefined) colors.border = node.props.accent;
-    ids.add(node.id);
-    nodes.push({ id: node.id, type: node.type, col: node.col, row: node.row, colSpan: node.colSpan, rowSpan: node.rowSpan,
-      props: { title: node.props.title, description: node.props.description,
-        ...colors, ...shapeOf(node.props), source: node.props.source ?? '' } });
+    if (!source || ![source.col, source.row, source.colSpan, source.rowSpan].every(value => Number.isFinite(value) && Math.abs(value) < 10000 && (current || Number.isInteger(value)))) throw new Error('存档中的网格坐标无效');
+    const definition = registry.get(source.type);
+    if (!definition || typeof source.id !== 'string' || !source.id || source.id.length > 100 || !source.props ||
+      !['title', 'description', 'accent'].every(key => typeof source.props[key] === 'string' && source.props[key].length <= 2000) ||
+      !isValidShape(source.props) || COLOR_FIELDS.some(([key]) => source.props[key] !== undefined && !isColor(source.props[key])) ||
+      (source.props.source !== undefined && (typeof source.props.source !== 'string' || source.props.source.length > 2000))) throw new Error('存档中的组件数据无效');
+    const colors = colorsOf({ ...definition.defaults, ...source.props });
+    if (source.type === 'basic.button' && source.props.background === undefined) colors.background = source.props.accent;
+    if (source.type === 'basic.button' && source.props.border === undefined) colors.border = source.props.accent;
+    const node: Placement = { id: source.id, type: source.type, parentId: current ? source.parentId ?? null : null,
+      col: source.col * scale, row: source.row * scale, colSpan: source.colSpan * scale, rowSpan: source.rowSpan * scale,
+      props: { title: source.props.title, description: source.props.description, ...colors, ...shapeOf(source.props), source: source.props.source ?? '' } };
+    if (node.parentId !== null && (typeof node.parentId !== 'string' || !node.parentId)) throw new Error('父容器 ID 无效');
+    if (isContainer(node)) {
+      if (source.layout !== undefined && (!source.layout || typeof source.layout !== 'object' || Array.isArray(source.layout))) throw new Error('容器布局设置无效');
+      const layout = { ...DEFAULT_LAYOUT, ...source.layout };
+      if (!validLayout(layout)) throw new Error('容器布局设置无效');
+      node.layout = Object.fromEntries(Object.keys(DEFAULT_LAYOUT).map(key => [key, layout[key as keyof ContainerLayout]])) as unknown as ContainerLayout;
+    }
+    nodes.push(node);
   }
-  return { schemaVersion: 2, grid: { ...GRID }, appearance: { background: appearance.background, grid: appearance.grid }, nodes };
+  const error = validateTree(nodes);
+  if (error) throw new Error(error);
+  return { schemaVersion: 3, grid: { ...GRID }, appearance: { background: appearance.background, grid: appearance.grid }, nodes };
 }
-
 export function initialDocument(): Document {
   const card = { ...createNode('content.card'), col: 72 / GRID.cell, row: 72 / GRID.cell };
   const metric = { ...createNode('data.metric'), col: 384 / GRID.cell, row: 72 / GRID.cell };
   const button = { ...createNode('basic.button'), col: 384 / GRID.cell, row: 216 / GRID.cell };
   const input = { ...createNode('basic.input'), col: 72 / GRID.cell, row: 288 / GRID.cell };
-  return { schemaVersion: 2, grid: { ...GRID }, appearance: { ...DEFAULT_APPEARANCE }, nodes: [card, metric, button, input] };
+  return { schemaVersion: 3, grid: { ...GRID }, appearance: { ...DEFAULT_APPEARANCE }, nodes: [card, metric, button, input] };
 }

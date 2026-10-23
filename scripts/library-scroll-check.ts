@@ -11,6 +11,7 @@ export async function checkLibraryScroll(page: Page) {
     await list.evaluate(element => { element.scrollTop = 0; });
     const size = await list.evaluate(element => ({ visible: element.clientHeight, total: element.scrollHeight }));
     assert(size.visible > 0 && size.total > size.visible, `${width}×${height} 组件列表拥有受限高度与滚动内容`);
+    assert((await list.locator('.component-tile').first().boundingBox())!.height >= 90, `${width}px 素材卡片不能被网格行高压缩成细线`);
     await list.scrollIntoViewIfNeeded();
     const box = (await list.boundingBox())!;
     const searchTop = (await page.locator('#search').boundingBox())!.y;
@@ -29,7 +30,7 @@ export async function checkLibraryScroll(page: Page) {
     await page.waitForFunction(() => document.getElementById('component-list')!.scrollTop === 0);
   }
   await page.setViewportSize({ width: 1440, height: 1000 });
-  const last = list.locator('.component-tile').last();
+  const last = list.locator('[data-type="html.meter"]');
   await last.scrollIntoViewIfNeeded();
   const tile = (await last.boundingBox())!;
   const canvas = (await page.locator('#canvas').boundingBox())!;

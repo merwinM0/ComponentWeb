@@ -2,6 +2,9 @@ import { components } from '../components/registry';
 import { $, Editor } from './editor';
 import { setupInspector } from './inspector';
 import { GRID } from '../core/grid';
+import { isContainer } from '../core/types';
+import type { Combinations } from '../core/combinations';
+import { combinationTiles } from './combination-tiles';
 
 const previews: Record<string, string> = {
   'content.card': '<div class="mini-card"><div class="mini-line short"></div><div class="mini-line"></div><div class="mini-line"></div></div>',
@@ -16,13 +19,15 @@ const previews: Record<string, string> = {
   'ui.navbar': '<div class="mini-tabs"><b>LOGO</b><span>概览</span><span>文档</span></div>',
 };
 
-export function setupPanels(editor: Editor) {
+export function setupPanels(editor: Editor, combinations: Combinations, dialogs: { rename(id: string): void; remove(id: string): void }) {
   let kind = '全部';
   const categories = $<HTMLSelectElement>('category-filter');
   const renderInspector = setupInspector(editor);
   $('library-count').textContent = String(components.length);
   function updateCategories() {
     categories.replaceChildren(new Option('所有分类', '全部'));
+    categories.disabled = kind === '我的组合';
+    if (kind === '我的组合') return;
     const filtered = components.filter(definition => kind === '全部' || (kind === 'HTML 标签') === definition.type.startsWith('html.'));
     for (const category of new Set(filtered.map(definition => definition.category))) categories.append(new Option(category, category));
   }
@@ -30,6 +35,8 @@ export function setupPanels(editor: Editor) {
     const query = $<HTMLInputElement>('search').value.trim().toLowerCase();
     const container = $('component-list');
     container.replaceChildren();
+    $('library-count').textContent = String(components.length + combinations.items.length);
+    if (kind === '我的组合') { const count = combinationTiles(container, editor, combinations, query, dialogs); $('library-results').textContent = `${count} 个本地组合 · 拖入或点击添加`; return; }
     let count = 0;
     for (const definition of components) {
       if (kind !== '全部' && (kind === 'HTML 标签') !== definition.type.startsWith('html.')) continue;
@@ -64,7 +71,7 @@ export function setupPanels(editor: Editor) {
       text.append(title, hint);
       const add = document.createElement('button'); add.type = 'button'; add.textContent = '＋ 添加';
       add.setAttribute('aria-label', `添加${definition.title}`); add.disabled = editor.preview;
-      add.addEventListener('click', () => editor.add(definition.type));
+      add.addEventListener('click', () => editor.add(definition.type, undefined, editor.node && isContainer(editor.node) ? editor.node.id : null));
       info.append(text, add); tile.append(preview, info); container.append(tile);
     }
     $('library-results').textContent = `${count} 项素材 · 拖入或点击添加`;
@@ -85,6 +92,7 @@ export function setupPanels(editor: Editor) {
       updateCategories(); renderLibrary();
     });
   });
+  combinations.subscribe(renderLibrary);
   updateCategories(); renderLibrary();
   return { refresh: () => { renderLibrary(); renderInspector(); } };
 }

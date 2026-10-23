@@ -7,11 +7,12 @@
   <title>ComponentWeb · 网格组件工作台</title>
   <link rel="stylesheet" href="./src/styles.css">
   <link rel="stylesheet" href="./src/catalogue.css">
+  <link rel="stylesheet" href="./src/workbench.css">
   <script type="module" src="./src/main.ts"></script>
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="/" aria-label="ComponentWeb 首页"><span class="brand-icon" aria-hidden="true">▦</span><strong>Component<span>Web</span></strong><span class="version">原生版 / 03</span></a>
+    <a class="brand" href="/" aria-label="ComponentWeb 首页"><span class="brand-icon" aria-hidden="true">▦</span><strong>Component<span>Web</span></strong><span class="version">原生版 / 04</span></a>
     <div class="project"><span class="project-dot"></span> 未命名工作区 <span class="slash">/</span> <span class="muted">布局实验</span></div>
     <div class="top-actions"><span id="save-state" class="save-state" role="status">本地工作区</span><button id="preview" aria-pressed="false">▷ 预览</button><button id="save" class="primary">保存布局 <span aria-hidden="true">↗</span></button></div>
   </header>
@@ -20,21 +21,27 @@
       <details open class="panel-details"><summary>组件库 <span id="library-count" class="badge"></span></summary>
         <div class="panel-intro">小组件，搭出大想法。</div>
         <label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="搜索组件、HTML 标签…" aria-label="搜索组件"></label>
-        <div class="category-tabs" aria-label="素材类型"><button class="active" data-kind="全部" aria-pressed="true">全部</button><button data-kind="常用组件" aria-pressed="false">常用组件</button><button data-kind="HTML 标签" aria-pressed="false">HTML 标签</button></div>
+        <div class="category-tabs" aria-label="素材类型"><button class="active" data-kind="全部" aria-pressed="true">全部</button><button data-kind="常用组件" aria-pressed="false">常用组件</button><button data-kind="HTML 标签" aria-pressed="false">HTML 标签</button><button data-kind="我的组合" aria-pressed="false">我的组合</button></div>
         <label class="category-select">分类<select id="category-filter" aria-label="组件分类"></select></label>
         <p id="library-results" class="library-results" role="status"></p>
         <div id="component-list" class="component-list" tabindex="0" role="region" aria-label="可滚动的组件列表"></div>
         <div class="library-note"><span aria-hidden="true">⊞</span><div><strong>拖入，即刻开始</strong><p>按网格自由组合，每一处都刚刚好。也可以点击添加。</p></div></div>
       </details>
-      <div class="library-footer"><span class="status-dot"></span> 本地运行，无需登录 <span>v0.3</span></div>
+      <div class="library-footer"><span class="status-dot"></span> 本地运行，无需登录 <span>v0.4</span></div>
     </aside>
     <section class="workspace" aria-label="布局工作区">
       <div class="workspace-toolbar"><div class="workspace-title"><span class="status-dot"></span><h1>工作区</h1><span class="label-tag">自由构建 / 网格约束</span></div><div class="history"><button id="undo" aria-label="撤销" title="撤销 Ctrl / Cmd + Z">↶</button><button id="redo" aria-label="重做" title="重做 Ctrl / Cmd + Shift + Z">↷</button><span class="divider"></span><label class="zoom-label">缩放 <select id="zoom" aria-label="画布缩放"><option value="0.5">50%</option><option value="0.75">75%</option><option value="1" selected>100%</option><option value="1.25">125%</option></select></label></div></div>
-      <div class="canvas-heading"><div><span class="eyebrow">YOUR IDEAS, IN PLACE</span><p>把灵感，放进网格。</p></div><span class="canvas-meta"><b id="grid-dimensions">120 × 90</b> <span>GRID</span></span></div>
-      <div id="viewport" class="viewport" tabindex="0" aria-label="画布。选中后方向键移动组件，Delete 删除，Escape 取消。">
+      <div class="commandbar" aria-label="布局操作">
+        <button id="select-all">全选</button><button id="new-container">⊞ 新建容器</button>
+        <button id="group-selection" data-selection-action>组合</button>
+        <details class="arrange-dropdown"><summary>对齐 / 分布 ▾</summary><div id="arrange-actions"></div></details>
+        <button id="save-combination" data-selection-action>保存组合</button><button id="more-actions" aria-haspopup="menu">更多 ⋯</button>
+      </div>
+      <div class="canvas-heading"><div><span class="eyebrow">YOUR IDEAS, IN PLACE</span><p>把灵感，放进网格。</p></div><span class="canvas-meta"><b id="grid-dimensions">80 × 60</b> <span>GRID</span></span></div>
+      <div id="viewport" class="viewport" tabindex="0" aria-label="画布。空白处拖动框选，Shift 点击多选，方向键移动所选组件，右键或 Shift F10 打开功能菜单。">
         <div id="canvas-shell" class="canvas-shell"><div id="canvas" class="canvas"><div id="empty-state" class="empty-state" hidden><span>＋</span><h2>从第一块组件开始</h2><p>从左侧拖入组件，或点击「添加」</p></div><div id="ghost" class="placement-ghost" hidden><span></span></div></div></div>
       </div>
-      <div class="workspace-bottom"><span>▦　<span id="grid-cell-label">8 px 网格</span> <span class="separator">·</span> 自动吸附 <span class="separator">·</span> 禁止重叠</span><span><kbd>↑↓←→</kbd> 移动 <kbd>Del</kbd> 删除</span></div>
+      <div class="workspace-bottom"><span>▦　<span id="grid-cell-label">12 px 网格</span> <span class="separator">·</span> Shift 多选 <span class="separator">·</span> 右键操作</span><span><kbd>↑↓←→</kbd> 移动 <kbd>Del</kbd> 删除</span></div>
     </section>
     <aside class="inspector panel" aria-label="属性面板"><details open class="panel-details"><summary>属性面板 <span class="tiny-label">INSPECTOR</span></summary><div id="inspector-content"></div></details><div class="inspector-note">布局由网格定义<br>细节由你决定 <span>↗</span></div></aside>
   </main>

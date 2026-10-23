@@ -1,0 +1,106 @@
+import type { Page } from 'playwright';
+import AxeBuilder from '@axe-core/playwright';
+import { createNode, initialDocument } from '../blank/src/core/model';
+import { STORAGE_KEY } from '../blank/src/core/store';
+import { COMBINATIONS_KEY } from '../blank/src/core/combinations';
+
+const assert = (value: unknown, message: string) => { if (!value) throw new Error(message); };
+export async function checkWorkbench(source: Page) {
+  const context = await source.context().browser()!.newContext({ viewport: { width: 1440, height: 1000 } });
+  const buttons = [2, 22, 52].map((col, index) => ({ ...createNode('basic.button'), id: `${String.fromCharCode(97 + index)}-node`, col, row: 6 + index * 4,
+    props: { ...createNode('basic.button').props, title: `按钮 ${String.fromCharCode(65 + index)}` } }));
+  const doc = { ...initialDocument(), nodes: buttons };
+  await context.addInitScript(({ key, doc }) => { if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify(doc)); }, { key: STORAGE_KEY, doc });
+  const page = await context.newPage(); const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  try {
+    await page.goto(source.url()); await page.locator('.node').first().waitFor();
+    const node = (id: string) => page.locator(`.node[data-id="${id}"]`);
+    const pick = async (id: string, shift = false) => { await page.locator(`.layer-item[data-id="${id}"]`).click({ modifiers: shift ? ['Shift'] : [] }); };
+    const data = async () => { await page.locator('#save').click(); return page.evaluate(key => JSON.parse(localStorage.getItem(key)!), STORAGE_KEY); };
+    await node('a-node').click(); await node('b-node').click({ modifiers: ['Shift'] }); await node('c-node').click({ modifiers: ['Shift'] });
+    assert(await page.locator('.node.selected').count() === 3, 'Shift 点击多选');
+    await page.getByRole('button', { name: '顶对齐', exact: true }).click();
+    const rows = await page.locator('.node').evaluateAll(elements => elements.map(element => (element as HTMLElement).style.top)); assert(rows.every(value => value === '72px'), '批量顶对齐');
+    await page.getByRole('button', { name: '水平等间距', exact: true }).click();
+    assert(await node('b-node').evaluate(element => element.style.left) === '324px', '水平等间距分布');
+    await page.locator('#undo').click(); assert(await node('b-node').evaluate(element => element.style.left) === '264px', '分布只需一次撤销'); await page.locator('#redo').click();
+    const box = (await node('b-node').boundingBox())!;
+    await page.mouse.move(box.x + 25, box.y + 20); await page.mouse.down(); await page.mouse.move(box.x + 49, box.y + 44, { steps: 8 }); await page.mouse.up();
+    assert(await node('a-node').evaluate(element => element.style.left === '48px' && element.style.top === '96px'), '拖动任一所选项移动整个组');
+    assert(await node('c-node').evaluate(element => element.style.left === '648px'), '组内相对位置不变');
+    await page.locator('#undo').click(); assert(await node('a-node').evaluate(element => element.style.left) === '24px', '整组拖动一次撤销');
+    // 框选全部三个按钮。
+    const canvas = (await page.locator('#canvas').boundingBox())!;
+    await page.mouse.move(canvas.x + 10, canvas.y + 60); await page.mouse.down(); await page.mouse.move(canvas.x + 810, canvas.y + 125, { steps: 10 }); await page.mouse.up();
+    assert(await page.locator('.node.selected').count() === 3, '空白画布框选');
+    await page.locator('#group-selection').click();
+    assert(await page.locator('.node[data-container="true"]').count() === 1, '组合为真实容器');
+    const rootId = await page.locator('.node.selected').getAttribute('data-id'); assert(rootId, '生成容器 ID');
+    assert(await page.locator('.container-host > .node').count() === 3, '子项挂载进容器，而非仅画选中框');
+    await page.locator('#prop-rowSpan').fill('240'); await page.locator('#prop-rowSpan').press('Tab');
+    await page.locator('#layout-mode').selectOption('flex');
+    assert(await page.locator('.container-children').evaluate(element => getComputedStyle(element).display) === 'flex', '真实 CSS Flex 布局');
+    await page.locator('#layout-gap').fill('24'); await page.locator('#layout-gap').press('Tab');
+    const a = (await node('a-node').boundingBox())!, b = (await node('b-node').boundingBox())!;
+    assert(Math.abs(b.x - a.x - a.width - 24) < 1, 'Flex gap 生效');
+    await page.locator('#layout-mode').selectOption('grid'); await page.locator('#layout-columns').fill('3'); await page.locator('#layout-columns').press('Tab');
+    assert(await page.locator('.container-children').evaluate(element => getComputedStyle(element).display) === 'grid', '真实 CSS Grid 布局');
+    const ga = (await node('a-node').boundingBox())!, gb = (await node('b-node').boundingBox())!;
+    assert(Math.abs(gb.x - ga.x - ga.width - 24) < 1, 'Grid 列与 gap 生效');
+    await pick('a-node');
+    const reorderA = (await node('a-node').boundingBox())!, reorderC = (await node('c-node').boundingBox())!;
+    await page.mouse.move(reorderA.x + 20, reorderA.y + 20); await page.mouse.down();
+    await page.mouse.move(reorderC.x + reorderC.width - 4, reorderC.y + 20, { steps: 12 }); await page.mouse.up();
+    const reordered = await data();
+    assert(reordered.nodes.filter((item: { parentId: string }) => item.parentId === rootId).map((item: { id: string }) => item.id).join(',') === 'b-node,c-node,a-node', '拖动 Grid 子项调整顺序');
+    await page.locator('#undo').click(); await pick(rootId!);
+    await page.locator('#more-actions').click(); await page.getByRole('menuitem', { name: '解散容器', exact: true }).click();
+    assert(await page.locator('.node[data-container="true"]').count() === 0 && await page.locator('.node').count() === 3, '解散容器保留子组件');
+    await page.locator('#undo').click(); await pick(rootId!);
+    assert(await page.locator('.node[data-container="true"]').count() === 1, '一次撤销恢复容器和子树');
+    await page.locator('.container-add select').selectOption('layout.container'); await page.getByRole('button', { name: '添加到此容器', exact: true }).click();
+    const innerId = await page.locator('.node.selected').getAttribute('data-id'); assert(innerId && innerId !== rootId, '可以嵌套容器');
+    await page.locator('#prop-rowSpan').fill('120'); await page.locator('#prop-rowSpan').press('Tab');
+    await page.locator('.container-add select').selectOption('basic.button'); await page.getByRole('button', { name: '添加到此容器', exact: true }).click();
+    const innerButton = await page.locator('.node.selected').getAttribute('data-id');
+    assert(await node(innerId!).locator(':scope > .component-host > .node').count() === 1, '嵌套容器内可放置子组件');
+    await pick(rootId!); assert(await page.locator(`#prop-parent option[value="${innerId}"]`).count() === 0, '父容器选择器禁止循环嵌套');
+    const audit = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+    assert(!audit.violations.length, `嵌套编辑器无障碍：${JSON.stringify(audit.violations.map(value => ({ id: value.id, targets: value.nodes.map(node => node.target) })))}`);
+    await page.locator('#save-combination').click(); await page.locator('#combination-name').fill('我的嵌套模块'); await page.locator('#combination-form button[type="submit"]').click();
+    assert(await page.locator('.combination-tile').count() === 1, '组合保存到独立素材分类');
+    const first = await data(); const originalIds = new Set(first.nodes.map((node: { id: string }) => node.id));
+    // 清空选择，向根画布添加一个独立副本。
+    const viewport = (await page.locator('#canvas').boundingBox())!;
+    await page.mouse.click(viewport.x + 850, viewport.y + 500);
+    const combinationTile = (await page.locator('.combination-tile .tile-preview').boundingBox())!;
+    await page.mouse.move(combinationTile.x + 25, combinationTile.y + 20); await page.mouse.down();
+    await page.mouse.move(viewport.x + 384, viewport.y + 432, { steps: 15 }); await page.mouse.up();
+    assert(await page.locator('.node').count() === first.nodes.length * 2, '我的组合支持拖入');
+    await page.locator('#undo').click(); assert(await page.locator('.node').count() === first.nodes.length, '组合拖入可一次撤销');
+    await page.getByRole('button', { name: '添加组合 我的嵌套模块', exact: true }).click();
+    const second = await data(); assert(second.nodes.length === first.nodes.length * 2, '插入组合保留完整子树');
+    const copyIds = second.nodes.filter((item: { id: string }) => !originalIds.has(item.id)).map((item: { id: string }) => item.id);
+    assert(copyIds.length === first.nodes.length && new Set(second.nodes.map((item: { id: string }) => item.id)).size === second.nodes.length, '副本全部使用新 ID');
+    const copiedA = second.nodes.find((item: { id: string; props: { title: string } }) => copyIds.includes(item.id) && item.props.title === '按钮 A');
+    await pick(copiedA.id); await page.locator('#prop-title').fill('独立修改副本'); await page.locator('#prop-title').press('Tab');
+    assert((await node('a-node').locator(':scope > .component-host').textContent()) === '', '组件内容保持 Shadow DOM 隔离');
+    assert(await node('a-node').locator(':scope > .component-host button span').textContent() === '按钮 A', '副本编辑不影响原组件');
+    // 页面右键与键盘菜单，并保留输入框原生菜单。
+    await pick(rootId!); await page.keyboard.press('Shift+F10'); assert(await page.locator('#context-menu').isVisible(), 'Shift F10 打开功能菜单');
+    await page.keyboard.press('End'); assert(await page.evaluate(() => document.activeElement?.textContent) === '保存当前布局', '菜单支持键盘导航'); await page.keyboard.press('Escape');
+    assert(await page.locator('#context-menu').isHidden(), 'Escape 关闭菜单');
+    const nativeAllowed = await page.locator('#prop-title').evaluate(element => element.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, composed: true, cancelable: true })));
+    assert(nativeAllowed && await page.locator('#context-menu').isHidden(), '输入框保留原生编辑菜单');
+    await page.locator('.combination-tile').click({ button: 'right' }); assert(await page.getByRole('menuitem', { name: '重命名组合', exact: true }).isVisible(), '组合右键菜单包含对应功能');
+    await page.getByRole('menuitem', { name: '重命名组合', exact: true }).click(); await page.locator('#combination-name').fill('已重命名模块'); await page.locator('#combination-form button[type="submit"]').click();
+    assert(await page.getByRole('button', { name: '添加组合 已重命名模块', exact: true }).count() === 1, '组合可重命名');
+    await page.getByRole('button', { name: '删除组合 已重命名模块', exact: true }).click(); await page.locator('.editor-dialog[open] [data-confirm]').click();
+    assert(await page.locator('.combination-tile').count() === 0, '组合可删除'); assert(await page.locator('.node').count() === second.nodes.length, '删除素材不删除画布副本');
+    await data(); await page.reload(); assert(await page.locator('.node').count() === second.nodes.length, '嵌套文档完整恢复');
+    assert((await page.evaluate(key => JSON.parse(localStorage.getItem(key)!), COMBINATIONS_KEY)).length === 0, '组合删除持久化');
+    await pick(rootId!); await page.screenshot({ path: '/tmp/componentweb-v4-nested.png', fullPage: true });
+    assert(!errors.length, `运行错误：${errors.join('; ')}`);
+    console.log('工作台验证通过：多选、框选、整组拖动、对齐分布、嵌套 Flex/Grid、我的组合及右键菜单。');
+  } finally { await context.close(); }
+}
