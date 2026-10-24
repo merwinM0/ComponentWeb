@@ -4,6 +4,8 @@ import { bounds, childrenOf, descendants, validateTree } from '../core/tree';
 import { cloneForest, reorderNodes } from '../core/operations';
 import { isContainer } from '../core/types';
 import { workingSize } from '../core/assembly';
+import { resizeEditingNode } from '../core/edit-region';
+import { EDIT_SPACE } from '../core/grid';
 import type { Combinations } from '../core/combinations';
 import { Editor, toast } from './editor';
 
@@ -51,7 +53,7 @@ export function setupGestures(editor: Editor, combinations: Combinations) {
       } else { roots = [createNode(tile.dataset.type!)]; added = roots; }
     } else if (background) { if (!event.shiftKey) editor.setSelection([]); }
     else if (node) {
-      if (!editor.selectedIds.has(node.id)) editor.select(node.id);
+      if (!editor.selectedIds.has(node.id) || editor.selectedTag) editor.select(node.id);
       roots = editor.selection;
       if (kind === 'resize' && roots.length !== 1) return;
       element!.dataset.pointerFocus = 'true'; element!.focus({ preventScroll: true }); delete element!.dataset.pointerFocus;
@@ -88,7 +90,7 @@ export function setupGestures(editor: Editor, combinations: Combinations) {
       const candidate = { ...node, parentId };
       if (s.kind === 'resize') {
         const min = registry.get(node.type)!.min;
-        if (node.id === editor.scopeRootId && isContainer(node)) candidate.design = { width: Math.max(24, workingSize(node).width + dx * GRID.cell), height: Math.max(24, workingSize(node).height + dy * GRID.cell) };
+        if (node.id === editor.scopeRootId) Object.assign(candidate, resizeEditingNode(node, Math.min(EDIT_SPACE.width, Math.max(min[0] * GRID.cell, workingSize(node).width + dx * GRID.cell)), Math.min(EDIT_SPACE.height, Math.max(min[1] * GRID.cell, workingSize(node).height + dy * GRID.cell))));
         else { candidate.colSpan = Math.max(min[0], node.colSpan + dx); candidate.rowSpan = Math.max(min[1], node.rowSpan + dy); }
       } else if (parent && parent.layout?.mode !== 'free') { candidate.col = 0; candidate.row = 0; }
       else if (s.kind === 'add') { candidate.col = Math.round((p.x - origin.col) / origin.scaleX - node.colSpan / 2); candidate.row = Math.round((p.y - origin.row) / origin.scaleY - node.rowSpan / 2); }
@@ -110,12 +112,13 @@ export function setupGestures(editor: Editor, combinations: Combinations) {
     const inPage = p.x >= 0 && p.y >= 0 && p.x * GRID.cell <= editor.pageSize.width && p.y * GRID.cell <= editor.pageSize.height;
     nodes = editor.prepareNodes(nodes);
     s.candidate = nodes; s.valid = inside && inPage && !editor.pageError(nodes) && !validateTree(nodes, !!editor.scopeRootId);
+    if (s.valid && s.kind === 'resize' && s.roots[0].id === editor.scopeRootId && !isContainer(s.roots[0])) { try { editor.renderer.checkNative(updates.get(s.roots[0].id)!, true); } catch { s.valid = false; } }
     const preview = bounds([...updates.values()].map(node => ({ ...node, col: node.col * origin.scaleX + origin.col, row: node.row * origin.scaleY + origin.row,
       colSpan: (node.id === editor.scopeRootId ? workingSize(node).width / GRID.cell : node.colSpan) * origin.scaleX, rowSpan: (node.id === editor.scopeRootId ? workingSize(node).height / GRID.cell : node.rowSpan) * origin.scaleY })));
     if (parent && parent.layout?.mode !== 'free') { preview.col = p.x - preview.colSpan / 2; preview.row = p.y - preview.rowSpan / 2; }
     Object.assign(editor.ghost.style, { left: `${preview.col * GRID.cell}px`, top: `${preview.row * GRID.cell}px`, width: `${preview.colSpan * GRID.cell}px`, height: `${preview.rowSpan * GRID.cell}px` });
     editor.ghost.hidden = !inside; editor.ghost.classList.toggle('invalid', !s.valid);
-    editor.ghost.querySelector('span')!.textContent = s.valid ? parent && parent.layout?.mode !== 'free' ? `放入 ${parent.layout!.mode.toUpperCase()} · 自动排版 / 调整顺序` : `${s.roots.length} 项 · ${Math.round(preview.colSpan * GRID.cell)} × ${Math.round(preview.rowSpan * GRID.cell)} px` : '无法放置 · 重叠、越界或循环嵌套';
+    editor.ghost.querySelector('span')!.textContent = s.valid ? parent && parent.layout?.mode !== 'free' ? `放入 ${parent.layout!.mode.toUpperCase()} · 自动排版 / 调整顺序` : `${s.roots.length} 项 · ${Math.round(preview.colSpan * GRID.cell)} × ${Math.round(preview.rowSpan * GRID.cell)} px` : editor.scopeRootId ? '超出组件边界 · 请先调整编辑框尺寸' : '无法放置 · 重叠、越界或循环嵌套';
   });
   function finish(commit: boolean) {
     if (!state) return;

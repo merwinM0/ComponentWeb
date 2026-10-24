@@ -1,4 +1,4 @@
-import { pathKey, type ElementEdit } from '../core/element-edits';
+import { pathKey, fitsNativeSurface, type ElementEdit } from '../core/element-edits';
 import { GRID } from '../core/grid';
 import type { Placement } from '../core/types';
 import { tagAt, tagPath } from './element-dom';
@@ -6,8 +6,9 @@ import { Editor, toast } from './editor';
 
 export function setupElementEditing(editor: Editor) {
   const outline = document.createElement('div'); outline.className = 'element-outline'; outline.hidden = true; outline.setAttribute('aria-hidden', 'true'); outline.append(document.createElement('span')); editor.canvas.append(outline);
-  let drag: { pointer: number; id: string; path: number[]; x: number; y: number; sx: number; sy: number; edit: ElementEdit; host: HTMLElement; candidate?: ElementEdit } | null = null;
+  let drag: { pointer: number; id: string; path: number[]; x: number; y: number; sx: number; sy: number; edit: ElementEdit; host: HTMLElement; limits: { minX: number; maxX: number; minY: number; maxY: number }; candidate?: ElementEdit } | null = null;
   function render() {
+    outline.classList.remove('invalid');
     const selected = editor.selectedTag, host = selected && editor.renderer.tagHost(selected.id);
     const element = host && tagAt(host.shadowRoot!, selected!.path);
     if (!element || !element.getBoundingClientRect().width) { outline.hidden = true; return; }
@@ -27,10 +28,10 @@ export function setupElementEditing(editor: Editor) {
   editor.onChangeTag = (id, edit) => {
     const node = editor.store.doc.nodes.find(node => node.id === id); if (!node || !editor.scopeRootId) return;
     try {
-      const elements = editsFor(id, edit), surface = editor.renderer.previewElements(id, elements);
+      const elements = editsFor(id, edit), surface = editor.renderer.nativeFrame(id), measured = editor.renderer.previewElements(id, elements);
+      if (!fitsNativeSurface(measured, surface)) throw new Error('标签不能超出组件边界，请先扩大组件，或缩小、移回标签');
       const updated: Placement = { ...node, elements, surface };
-      if (id === editor.scopeRootId) { updated.col += (surface.x - (node.surface?.x ?? 0)) / GRID.cell; updated.row += (surface.y - (node.surface?.y ?? 0)) / GRID.cell; }
-      if (!elements.length) { delete updated.elements; updated.surface = { ...surface, x: 0, y: 0, width: surface.baseWidth, height: surface.baseHeight }; }
+      if (!elements.length) delete updated.elements;
       if (!editor.update(updated)) editor.render();
     } catch (error) { toast((error as Error).message); editor.render(); }
     render();
@@ -45,15 +46,23 @@ export function setupElementEditing(editor: Editor) {
     (document.activeElement as HTMLElement)?.blur(); editor.onSelectTag(id, path);
     const node = editor.store.doc.nodes.find(node => node.id === id)!, css = getComputedStyle(host), surface = node.surface ?? { baseWidth: parseFloat(css.width), baseHeight: parseFloat(css.height) }, rect = host.getBoundingClientRect();
     const edit = node.elements?.find(item => pathKey(item.path) === pathKey(path)) ?? { path, tag: element.localName };
-    drag = { pointer: event.pointerId, id, path, x: event.clientX, y: event.clientY, sx: rect.width / surface.baseWidth, sy: rect.height / surface.baseHeight, edit, host };
+    const sx = rect.width / surface.baseWidth, sy = rect.height / surface.baseHeight, box = tagAt(host.shadowRoot!, path)!.getBoundingClientRect(), frame = editor.renderer.nativeFrame(id);
+    drag = { pointer: event.pointerId, id, path, x: event.clientX, y: event.clientY, sx, sy, edit, host,
+      limits: { minX: frame.x - (box.left - rect.left) / sx, maxX: frame.x + frame.width - (box.right - rect.left) / sx,
+        minY: frame.y - (box.top - rect.top) / sy, maxY: frame.y + frame.height - (box.bottom - rect.top) / sy } };
     host.setPointerCapture(event.pointerId);
   }, true);
   document.addEventListener('pointermove', event => {
     if (!drag || drag.pointer !== event.pointerId) return;
     const dx = event.clientX - drag.x, dy = event.clientY - drag.y; if (!drag.candidate && Math.hypot(dx, dy) < 4) return;
-    const edit = { ...drag.edit, style: { ...drag.edit.style, x: (drag.edit.style?.x ?? 0) + Math.round(dx / drag.sx / GRID.cell) * GRID.cell, y: (drag.edit.style?.y ?? 0) + Math.round(dy / drag.sy / GRID.cell) * GRID.cell } };
+    const bounded = (value: number, min: number, max: number) => Math.ceil(min / GRID.cell) > Math.floor(max / GRID.cell) ? 0 : Math.max(Math.ceil(min / GRID.cell), Math.min(Math.floor(max / GRID.cell), Math.round(value / GRID.cell))) * GRID.cell;
+    const edit = { ...drag.edit, style: { ...drag.edit.style, x: (drag.edit.style?.x ?? 0) + bounded(dx / drag.sx, drag.limits.minX, drag.limits.maxX), y: (drag.edit.style?.y ?? 0) + bounded(dy / drag.sy, drag.limits.minY, drag.limits.maxY) } };
     drag.candidate = edit;
-    try { editor.renderer.previewElements(drag.id, editsFor(drag.id, edit)); render(); } catch { /* 松开时报告范围错误并回滚。 */ }
+    try {
+      const fits = fitsNativeSurface(editor.renderer.previewElements(drag.id, editsFor(drag.id, edit)), editor.renderer.nativeFrame(drag.id));
+      if (!fits) editor.renderer.previewElements(drag.id, editor.store.doc.nodes.find(node => node.id === drag!.id)!.elements ?? []);
+      render(); outline.classList.toggle('invalid', !fits);
+    } catch { /* 松开时报告范围错误并回滚。 */ }
   });
   function cancel(commit = false) {
     const state = drag; drag = null;

@@ -1,5 +1,5 @@
 import { createNode, findSpace, GRID, parseDocument, type Document, type Placement } from '../core/model';
-import { CANVAS, EDIT_SPACE } from '../core/grid';
+import { CANVAS } from '../core/grid';
 import type { InlineEdit } from '../core/inline-edit';
 import { workingSize } from '../core/assembly';
 import type { ElementEdit } from '../core/element-edits';
@@ -10,7 +10,7 @@ import { alignNodes, cloneForest, distributeNodes, groupNodes, moveNodes, placeF
 import type { Props } from '../components/contract';
 import { CanvasRenderer } from './canvas-renderer';
 import { hitNode, logicalRect, contentOrigin, arrangeVisual } from './coordinates';
-import { growDesign } from '../core/design-bounds';
+import { editRegionError, regionOf, resizeEditingNode, moveEditingRegion } from '../core/edit-region';
 import { $, toast } from './dom';
 export { $, toast } from './dom';
 
@@ -51,11 +51,7 @@ export class Editor {
   hitNode(target: HTMLElement, deep = false) { return hitNode(this, target, deep); }
   pageError(nodes: Placement[]): string | null {
     if (!this.scopeRootId) return null;
-    const root = nodes.find(node => node.id === this.scopeRootId);
-    if (!root) return null;
-    if (root.parentId) return '本层编辑对象不能放入自己的子项；请使用组装操作';
-    const size = workingSize(root);
-    return root.col < 0 || root.row < 0 || root.col * GRID.cell + size.width > EDIT_SPACE.width + 1e-6 || root.row * GRID.cell + size.height > EDIT_SPACE.height + 1e-6 ? '超出原位编辑范围，请移动组件或缩小内部尺寸' : null;
+    return editRegionError(nodes, this.scopeRootId, this.session?.current?.bounds);
   }
   get selected() { return [...this.selectedIds].at(-1) ?? null; }
   get selection() { return topSelection(this.store.doc.nodes, this.selectedIds); }
@@ -97,13 +93,16 @@ export class Editor {
     $<HTMLButtonElement>('undo').disabled = !this.store.canUndo || this.preview; $<HTMLButtonElement>('redo').disabled = !this.store.canRedo || this.preview;
     this.selectionStatus(); this.onSelection();
   }
-  prepareNodes(nodes: Placement[]) { return growDesign(nodes, this.store.doc.nodes, this.scopeRootId); }
+  prepareNodes(nodes: Placement[]) { return this.scopeRootId ? moveEditingRegion(nodes, this.store.doc.nodes, this.scopeRootId) : nodes; }
+  resizeEditing(width: number, height: number) { return this.attempt(() => this.store.doc.nodes.map(node => node.id === this.scopeRootId ? resizeEditingNode(node, width, height) : node)); }
   commit(nodes: Placement[], ids?: Iterable<string>) {
     if (this.preview) return false;
     try {
       nodes = this.prepareNodes(nodes);
       const pageError = this.pageError(nodes); if (pageError) throw new Error(pageError);
       const doc = parseDocument(JSON.stringify({ ...this.store.doc, nodes }), !!this.scopeRootId);
+      const root = doc.nodes.find(node => node.id === this.scopeRootId), old = this.scopeRoot;
+      if (root && !isContainer(root) && old && JSON.stringify(root) !== JSON.stringify(old)) this.renderer.checkNative(root, true);
       const unchanged = JSON.stringify(doc) === JSON.stringify(this.store.doc);
       if (ids) this.selectedIds = new Set(ids);
       this.store.commit(doc);
@@ -116,17 +115,20 @@ export class Editor {
   }
   add(type: string, placement?: Placement, parentId: string | null = null) {
     if (this.preview) return;
-    const target = parentId;
-    const created = createNode(type);
-    const node = placement ? { ...placement, parentId: placement.parentId ?? target } : this.scopeRootId && !target ? { ...created, ...this.stagingPosition(created) } : findSpace({ ...created, parentId: target }, this.store.doc.nodes);
-    if (!node) { toast('没有可用空间，可调整容器尺寸或使用自动布局'); return; }
+    const target = parentId ?? (this.scopeRoot && isContainer(this.scopeRoot) ? this.scopeRootId : null);
+    const created = createNode(type), position = this.scopeRootId ? this.stagingPosition(created, target) : undefined;
+    const node = placement ? { ...placement, parentId: placement.parentId ?? target } : this.scopeRootId ? position && { ...created, parentId: target, ...position } : findSpace({ ...created, parentId: target }, this.store.doc.nodes);
+    if (!node) { toast(this.scopeRootId ? '组件放不进当前编辑框，请先扩大被编辑组件' : '没有可用空间，可调整容器尺寸或使用自动布局'); return; }
     this.commit([...this.store.doc.nodes, node], [node.id]);
   }
-  stagingPosition(node: Pick<Placement, 'colSpan' | 'rowSpan'>) {
-    const root = this.scopeRoot, size = root ? workingSize(root) : { width: 0, height: 0 };
+  stagingPosition(node: Pick<Placement, 'colSpan' | 'rowSpan'>, parentId: string | null = null) {
+    const root = this.scopeRoot;
+    const parent = this.store.doc.nodes.find(item => item.id === parentId), area = parent ? { ...regionOf(parent, true), col: 0, row: 0 } : root ? regionOf(root, true) : this.session?.current?.bounds;
+    if (!area) return undefined;
+    if (node.colSpan > area.cols + 1e-6 || node.rowSpan > area.rows + 1e-6) return undefined;
+    if (parent?.layout?.mode !== 'free' && parent) return { col: 0, row: 0 };
     const count = this.session?.loose.length ?? 0;
-    return { col: Math.min(EDIT_SPACE.width / GRID.cell - node.colSpan, Math.round((root?.col ?? 0) + size.width / GRID.cell + 2)),
-      row: Math.min(EDIT_SPACE.height / GRID.cell - node.rowSpan, Math.round((root?.row ?? 0) + count * (node.rowSpan + 1))) };
+    return { col: area.col + Math.min(count % 4, area.cols - node.colSpan), row: area.row + Math.min(Math.floor(count / 4), area.rows - node.rowSpan) };
   }
   update(node: Placement) { return this.commit(this.store.doc.nodes.map(other => other.id === node.id ? node : other)); }
   move(dx: number, dy: number) { return this.attempt(() => moveNodes(this.store.doc.nodes, this.selectedIds, dx, dy)); }
@@ -143,15 +145,20 @@ export class Editor {
       const roots = this.selection;
       if (roots.some(node => node.parentId !== roots[0].parentId)) throw new Error('复制时请选择同一父级的组件');
       const copies = cloneForest(this.store.doc.nodes, this.selectedIds);
-      const target = this.scopeRootId ? null : roots[0].parentId;
+      const target = this.scopeRootId ? this.scopeRoot && isContainer(this.scopeRoot) ? this.scopeRootId : null : roots[0].parentId;
       if (this.scopeRootId && copies.roots.length === 1 && roots[0].id === this.scopeRootId) { const size = workingSize(roots[0]); const copy = copies.nodes.find(node => node.id === copies.roots[0])!; copy.colSpan = size.width / GRID.cell; copy.rowSpan = size.height / GRID.cell; }
-      this.commit([...this.store.doc.nodes, ...placeForest(copies.nodes, copies.roots, this.store.doc.nodes, target, this.scopeRootId ? this.stagingPosition(bounds(copies.nodes.filter(node => copies.roots.includes(node.id)))) : undefined)], copies.roots);
+      const position = this.scopeRootId ? this.stagingPosition(bounds(copies.nodes.filter(node => copies.roots.includes(node.id))), target) : undefined;
+      if (this.scopeRootId && !position) throw new Error('副本放不进编辑框，请先扩大组件');
+      this.commit([...this.store.doc.nodes, ...placeForest(copies.nodes, copies.roots, this.store.doc.nodes, target, position)], copies.roots);
     } catch (error) { toast((error as Error).message); }
   }
   insertSnapshot(snapshot: Document, parentId: string | null = null, position?: { col: number; row: number }) {
     try {
       const copies = cloneForest(snapshot.nodes, snapshot.nodes.filter(node => !node.parentId).map(node => node.id));
-      this.commit([...this.store.doc.nodes, ...placeForest(copies.nodes, copies.roots, this.store.doc.nodes, parentId, position ?? (this.scopeRootId && !parentId ? this.stagingPosition(bounds(copies.nodes.filter(node => copies.roots.includes(node.id)))) : undefined))], copies.roots);
+      const target = parentId ?? (this.scopeRoot && isContainer(this.scopeRoot) ? this.scopeRootId : null);
+      const placed = position ?? (this.scopeRootId ? this.stagingPosition(bounds(copies.nodes.filter(node => copies.roots.includes(node.id))), target) : undefined);
+      if (this.scopeRootId && !placed) throw new Error('组合放不进编辑框，请先扩大组件');
+      this.commit([...this.store.doc.nodes, ...placeForest(copies.nodes, copies.roots, this.store.doc.nodes, target, placed)], copies.roots);
     } catch (error) { toast((error as Error).message); }
   }
   logicalRect(id: string) { return logicalRect(this, id); }

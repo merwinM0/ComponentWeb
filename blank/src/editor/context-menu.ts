@@ -38,7 +38,8 @@ export function setupContextMenu(editor: Editor, combinations: Combinations, dia
     menu.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus({ preventScroll: true });
   }
   document.addEventListener('contextmenu', event => {
-    if (event.composedPath().some(target => target instanceof HTMLElement && (target.matches('input,textarea,select') || target.isContentEditable)) || document.querySelector('dialog[open]')) return;
+    const component = event.composedPath().some(target => target instanceof HTMLElement && target.classList.contains('tag-editable'));
+    if ((!component && event.composedPath().some(target => target instanceof HTMLElement && (target.matches('input,textarea,select') || target.isContentEditable))) || document.querySelector('dialog[open]')) return;
     event.preventDefault(); show(event.clientX, event.clientY, event.target as HTMLElement);
   });
   menu.addEventListener('keydown', event => {

@@ -6,12 +6,14 @@ import { cloneForest } from './operations';
 import { Store } from './store';
 import { StoreRouter } from './store-router';
 import type { Document, Placement } from './types';
+import { editRegionError, regionOf, type EditRegion } from './edit-region';
 
 export interface EditView { selection: string[]; zoom: number; left: number; top: number }
 export interface EditFrame {
   id: string; rootId: string; name: string; store: Store; baseline: string; parent: Store; parentView: EditView;
   source: Placement; sourceTree?: string; templateId?: string;
   background: Document;
+  bounds: EditRegion;
 }
 const clean = (doc: Document, draft = false) => parseDocument(JSON.stringify(doc), draft);
 export class InlineEdit {
@@ -27,7 +29,8 @@ export class InlineEdit {
     if (this.frames.length >= 8) throw new Error('最多同时编辑 8 层组件，请先完成内层编辑');
     const parsed = clean(doc, true);
     const frame: EditFrame = { id: crypto.randomUUID(), rootId: source.id, name: source.props.title || '组件', source: structuredClone(source), sourceTree, templateId,
-      store: new Store(parsed), baseline: JSON.stringify(parsed), parent: this.router.active, parentView: structuredClone(view), background };
+      store: new Store(parsed), bounds: regionOf(parsed.nodes.find(node => node.id === source.id)!), baseline: JSON.stringify(parsed), parent: this.router.active, parentView: structuredClone(view), background };
+    frame.store.subscribe(() => { const root = frame.store.doc.nodes.find(node => node.id === frame.rootId); if (root) frame.bounds = regionOf(root); });
     this.frames.push(frame); this.router.activate(frame.store); this.onNavigate({ ...view, selection: [frame.rootId] });
   }
   open(id: string, view: EditView, position?: { col: number; row: number }, rendered?: { colSpan: number; rowSpan: number }) {
@@ -58,11 +61,12 @@ export class InlineEdit {
   }
   assemble() {
     const frame = this.current; if (!frame) return;
-    const nodes = assembleNodes(frame.store.doc.nodes, frame.rootId, frame.source);
+    const nodes = assembleNodes(frame.store.doc.nodes, frame.rootId, frame.source, frame.bounds);
     frame.store.commit(clean({ ...frame.store.doc, nodes }, true));
   }
   snapshot() {
     const frame = this.current; if (!frame) throw new Error('当前没有正在编辑的组件');
+    const error = editRegionError(frame.store.doc.nodes, frame.rootId, frame.bounds); if (error) throw new Error(error);
     const doc = clean(frame.store.doc, true);
     if (!doc.nodes.length) return doc;
     const root = doc.nodes.find(node => node.id === frame.rootId);
@@ -70,7 +74,7 @@ export class InlineEdit {
     const count = doc.nodes.filter(node => !all.has(node.id)).length;
     if (!root || root.parentId || count) throw new Error(`还有 ${count || doc.nodes.length} 个未组装元素，请先组装到当前组件或删除后再完成`);
     root.col = 0; root.row = 0;
-    if (!root.design && !root.elements?.length && !frame.source.surface) delete root.surface;
+    if (!root.design && !root.elements?.length && !frame.source.surface && JSON.stringify(root.surface) === JSON.stringify(JSON.parse(frame.baseline).nodes.find((node: Placement) => node.id === frame.rootId)?.surface)) delete root.surface;
     return clean({ ...doc, nodes: allowAssembledOverlap(doc.nodes) });
   }
   finish() {
@@ -83,6 +87,8 @@ export class InlineEdit {
     if (root) Object.assign(root, { parentId: source.parentId, col: source.col, row: source.row });
     const replacement = root ? [root, ...draft.nodes.filter(node => node.id !== root.id)] : [];
     const nodes = frame.parent.doc.nodes.flatMap(node => node.id === source.id ? replacement : all.has(node.id) ? [] : [node]);
+    const parentFrame = this.frames.at(-2);
+    if (parentFrame) { const error = editRegionError(nodes, parentFrame.rootId, parentFrame.bounds); if (error) throw new Error(error); }
     const result = clean({ ...frame.parent.doc, nodes }, this.frames.length > 1);
     if (JSON.stringify(result) !== JSON.stringify(clean(frame.parent.doc, this.frames.length > 1))) frame.parent.commit(result);
     this.leave(root ? [root.id] : []);

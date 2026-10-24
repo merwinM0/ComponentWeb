@@ -20,7 +20,7 @@ export function combinationTiles(target: HTMLElement, editor: Editor, combinatio
     add.addEventListener('click', () => editor.insertSnapshot(item.document, !editor.scopeRootId && editor.node && isContainer(editor.node) ? editor.node.id : null));
     info.append(text, add);
     const actions = document.createElement('div'); actions.className = 'combination-tile-actions';
-    for (const [label, run] of [['编辑', () => editor.onEditSavedCombination(item.id)], ['重命名', () => dialogs.rename(item.id)], ['删除', () => dialogs.remove(item.id)]] as const) {
+    for (const [label, run] of [['重命名', () => dialogs.rename(item.id)], ['删除', () => dialogs.remove(item.id)]] as const) {
       const button = document.createElement('button'); button.type = 'button'; button.textContent = label; button.setAttribute('aria-label', `${label}组合 ${item.name}`); button.disabled = editor.preview || (label === '删除' && !!editor.session?.frames.some(frame => frame.templateId === item.id)); button.addEventListener('click', run); actions.append(button);
     }
     tile.append(preview, info, actions); target.append(tile);

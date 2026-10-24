@@ -6,6 +6,7 @@ export interface ElementStyle { x?: number; y?: number; width?: number; height?:
 export interface ElementEdit { path: number[]; tag: string; text?: string; hidden?: boolean; style?: ElementStyle }
 export interface NativeSurface { baseWidth: number; baseHeight: number; x: number; y: number; width: number; height: number }
 export const pathKey = (path: number[]) => path.join('.');
+export const fitsNativeSurface = (content: NativeSurface, frame: NativeSurface) => content.x >= frame.x - 1e-5 && content.y >= frame.y - 1e-5 && content.x + content.width <= frame.x + frame.width + 1e-5 && content.y + content.height <= frame.y + frame.height + 1e-5;
 const object = (value: unknown): value is Record<string, any> => !!value && typeof value === 'object' && !Array.isArray(value);
 const number = (value: unknown, min: number, max: number): value is number => typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max;
 export function parseElementEdits(value: unknown): ElementEdit[] {

@@ -1,6 +1,8 @@
 import { InlineEdit, type EditView } from '../core/inline-edit';
 import { GRID } from '../core/grid';
 import { registry } from '../components/registry';
+import { workingSize } from '../core/edit-region';
+import { isContainer } from '../core/types';
 import type { Combinations } from '../core/combinations';
 import type { setupCombinationDialogs } from './combination-dialogs';
 import { createNode, findSpace as findNew } from '../core/model';
@@ -45,22 +47,18 @@ export function setupInlineEditing(editor: Editor, session: InlineEdit, combinat
   editor.onNewComponent = parentId => {
     const node = createNode('layout.container'); node.colSpan = 24; node.rowSpan = 16; node.design = { width: 288, height: 192 }; node.layout!.padding = 0; node.props.borderWidth = 0;
     if (parentId) editor.add(node.type, undefined, parentId);
-    else if (editor.scopeRootId) editor.add(node.type, { ...node, ...editor.stagingPosition(node) });
+    else if (editor.scopeRootId) { const target = editor.scopeRoot && isContainer(editor.scopeRoot) ? editor.scopeRootId : null, position = editor.stagingPosition(node, target); if (!position) { toast('容器放不进编辑框，请先扩大组件'); return; } editor.add(node.type, { ...node, parentId: target, ...position }, target); }
     else { const existing = editor.store.doc.nodes; perform(() => { const placed = findNew(node, existing); if (!placed) throw new Error('没有可用空间，请先腾出位置或进入组件编辑后添加'); editor.add(node.type, placed); }); }
   };
   editor.onAssemble = () => { if (validInputs()) perform(() => { session.assemble(); editor.select(session.rootId); }); };
   editor.onEditSavedCombination = id => perform(() => { const item = combinations.items.find(item => item.id === id); if (!item) throw new Error('组合不存在'); session.openTemplate(item.document, item.id, item.name, view()); });
   $('new-container').addEventListener('click', () => editor.onNewComponent());
-  $('edit-component').addEventListener('click', () => { if (editor.node && editor.node.id !== editor.scopeRootId) editor.onEditComponent(editor.node.id); });
   $('assemble-layer').addEventListener('click', () => editor.onAssemble()); $('finish-edit').addEventListener('click', () => finish());
-  $('create-combination').addEventListener('click', () => {
-    const before = editor.store.doc.nodes.length; editor.onNewComponent();
-    if (editor.store.doc.nodes.length > before && editor.selected) editor.onEditComponent(editor.selected);
-  });
-  editor.canvas.addEventListener('dblclick', event => { if (!editor.preview) { const node = editor.hitNode(event.target as HTMLElement, event.altKey); if (node && node.id !== session.rootId) editor.onEditComponent(node.id); } });
+  $('create-combination').addEventListener('click', () => editor.onNewComponent());
   $('inline-size').addEventListener('submit', event => event.preventDefault());
   $('inline-size').addEventListener('change', event => {
     if (!validInputs() || !session.root) return; const input = event.target as HTMLInputElement, root = session.root;
+    if (input.name === 'width' || input.name === 'height') { editor.resizeEditing(Number(($('inline-width') as HTMLInputElement).value), Number(($('inline-height') as HTMLInputElement).value)); input.blur(); render(); return; }
     const changed = input.name === 'title' ? { ...root, props: { ...root.props, title: input.value.trim() || '组合组件' } } : { ...root, [input.name]: Number(input.value) / GRID.cell };
     if (!editor.update(changed)) { input.blur(); render(); }
   });
@@ -68,7 +66,6 @@ export function setupInlineEditing(editor: Editor, session: InlineEdit, combinat
   function render() {
     const active = !!session.current; document.body.classList.toggle('editing-component', active); $('inline-editor').hidden = !active;
     $<HTMLButtonElement>('preview').disabled = active;
-    $<HTMLButtonElement>('edit-component').disabled = editor.preview || !editor.node || editor.node.id === session.rootId;
     $('group-selection').textContent = active ? '组装本层' : '组合';
     $('save').textContent = active ? '完成本层' : '保存布局 ↗';
     $('mode-label').textContent = active ? `原位编辑 · 第 ${session.frames.length} 层` : editor.preview ? '预览模式' : '编辑模式';
@@ -84,10 +81,11 @@ export function setupInlineEditing(editor: Editor, session: InlineEdit, combinat
       if (index === session.frames.length - 1) { button.setAttribute('aria-current', 'page'); button.disabled = true; }
       else button.addEventListener('click', () => finish(index + 1)); crumbs.append(separator, button);
     });
-    for (const [id, value] of [['inline-title', root?.props.title ?? session.current!.name], ['inline-width', (root?.colSpan ?? session.current!.source.colSpan) * GRID.cell], ['inline-height', (root?.rowSpan ?? session.current!.source.rowSpan) * GRID.cell]] as const) {
+    const size = root ? workingSize(root) : { width: session.current!.bounds.cols * GRID.cell, height: session.current!.bounds.rows * GRID.cell };
+    for (const [id, value] of [['inline-title', root?.props.title ?? session.current!.name], ['inline-width', size.width], ['inline-height', size.height], ['inline-display-width', (root?.colSpan ?? session.current!.source.colSpan) * GRID.cell], ['inline-display-height', (root?.rowSpan ?? session.current!.source.rowSpan) * GRID.cell]] as const) {
       const input = $<HTMLInputElement>(id); if (document.activeElement !== input) input.value = String(value); input.disabled = !root;
     }
-    if (root) { const min = registry.get(root.type)!.min; $<HTMLInputElement>('inline-width').min = String(min[0] * GRID.cell); $<HTMLInputElement>('inline-height').min = String(min[1] * GRID.cell); }
+    if (root) { const min = registry.get(root.type)!.min; $<HTMLInputElement>('inline-width').min = String(min[0] * GRID.cell); $<HTMLInputElement>('inline-height').min = String(min[1] * GRID.cell); $<HTMLInputElement>('inline-display-width').min = String(min[0] * GRID.cell); $<HTMLInputElement>('inline-display-height').min = String(min[1] * GRID.cell); }
     document.title = `正在编辑 ${root?.props.title ?? session.current!.name} · ComponentWeb`;
   }
   render(); return { render, finish };

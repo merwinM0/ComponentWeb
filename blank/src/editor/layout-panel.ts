@@ -11,7 +11,7 @@ export function layoutPanel(editor: Editor) {
   const excluded = descendants(editor.store.doc.nodes, [node.id]);
   const label = document.createElement('label'); label.className = 'field full'; label.textContent = '父容器';
   const parent = document.createElement('select'); parent.id = 'prop-parent'; parent.disabled = editor.preview || node.id === editor.scopeRootId;
-  parent.append(new Option(editor.scopeRootId ? '工作区散件（待组装）' : '工作区（根级）', ''));
+  parent.append(new Option(node.id === editor.scopeRootId ? '当前被编辑组件' : editor.scopeRootId ? '当前编辑框内（待组装）' : '工作区（根级）', ''));
   for (const other of editor.store.doc.nodes) if (isContainer(other) && !excluded.has(other.id)) parent.append(new Option(`${other.props.title || '容器'} · ${other.id.slice(0, 5)}`, other.id));
   parent.value = node.parentId ?? ''; parent.addEventListener('change', () => { editor.reparent(parent.value || null); editor.onSelection(); }); label.append(parent); container.append(label);
   if (!isContainer(node)) return container;

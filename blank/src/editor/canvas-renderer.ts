@@ -6,7 +6,7 @@ import { designSize, displayScale } from '../core/design-space';
 import { childrenOf } from '../core/tree';
 import { isContainer, type Document, type Placement } from '../core/types';
 import { workingSize } from '../core/assembly';
-import type { ElementEdit } from '../core/element-edits';
+import { nativeSurface, fitsNativeSurface, type ElementEdit } from '../core/element-edits';
 import { applyTags, restoreTags } from './element-dom';
 import { measureNative, scaleNative } from './native-surface';
 
@@ -18,6 +18,22 @@ export class CanvasRenderer {
   constructor(readonly canvas: HTMLElement, private focus: (id: string) => void) {}
   preview(id: string, props: Props) { const item = this.mounted.get(id); if (item) { restoreTags(item.host); item.instance.update(props); applyTags(item.host, item.node.elements); } }
   tagHost(id: string) { const item = this.mounted.get(id); return item && !isContainer(item.node) ? item.host : undefined; }
+  nativeFrame(id: string) {
+    const item = this.mounted.get(id)!, style = getComputedStyle(item.host);
+    return item.node.surface ?? { baseWidth: parseFloat(style.width), baseHeight: parseFloat(style.height), x: 0, y: 0, width: parseFloat(style.width), height: parseFloat(style.height) };
+  }
+  checkNative(node: Placement, scope: boolean) {
+    const item = this.mounted.get(node.id); if (!item || isContainer(item.node)) return;
+    const old = item.node, width = item.element.style.width, height = item.element.style.height;
+    try {
+      restoreTags(item.host); item.instance.update(node.props); applyTags(item.host, node.elements);
+      if (scope) { const size = workingSize(node); item.element.style.width = `${size.width}px`; item.element.style.height = `${size.height}px`; }
+      scaleNative(item.host, node, scope);
+      if (!fitsNativeSurface(measureNative(item.host, node), nativeSurface(node))) throw new Error('标签超出组件边界，请先扩大编辑框，或缩小、移回内部标签');
+    } finally {
+      restoreTags(item.host); item.instance.update(old.props); applyTags(item.host, old.elements); item.element.style.width = width; item.element.style.height = height; scaleNative(item.host, old, scope);
+    }
+  }
   previewElements(id: string, edits: ElementEdit[]) {
     const item = this.mounted.get(id)!, style = getComputedStyle(item.host);
     const base = item.node.surface ? item.node : { ...item.node, surface: { baseWidth: parseFloat(style.width), baseHeight: parseFloat(style.height), x: 0, y: 0, width: parseFloat(style.width), height: parseFloat(style.height) } };
@@ -106,7 +122,7 @@ export class CanvasRenderer {
       const label = item.element.querySelector<HTMLElement>(':scope > .node-label')!;
       label.hidden = !active; label.textContent = `${node.props.title || registry.get(node.type)!.title} · ${Math.round(item.element.getBoundingClientRect().width / this.zoom)} × ${Math.round(item.element.getBoundingClientRect().height / this.zoom)} px`;
       const parent = nodes.find(other => other.id === node.parentId);
-      item.element.querySelector<HTMLElement>(':scope > .resize-handle')!.hidden = !active || selected.size !== 1 || (item.element.classList.contains('scope-root') && !isContainer(node)) || (!!parent?.layout && parent.layout.mode !== 'free');
+      item.element.querySelector<HTMLElement>(':scope > .resize-handle')!.hidden = !active || selected.size !== 1 || (!!parent?.layout && parent.layout.mode !== 'free');
     }
   }
   element(id: string) { return this.mounted.get(id)?.element; }
