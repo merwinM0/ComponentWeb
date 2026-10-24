@@ -11,7 +11,7 @@
 .marquee { position:absolute;z-index:35;border:1px solid var(--accent);background:#8bd5ff1c;pointer-events:none; }
 .node.dragging,.node.dragging * { pointer-events:none!important; }
 .node.drop-target { outline:2px dashed #8be0bd;outline-offset:4px; }
-.component-host.container-host { pointer-events:auto; }
+.component-host.container-host { pointer-events:auto;position:relative;overflow:hidden; }
 .node[data-container='true'] { cursor:move; }
 .node > .node-label { max-width:360px;overflow:hidden;text-overflow:ellipsis; }
 .multi-title { margin:24px 0 10px;font-size:16px;font-weight:500; }

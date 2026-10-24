@@ -24,16 +24,18 @@ export function setupGestures(editor: Editor, combinations: Combinations) {
         element = element.parentElement?.closest<HTMLElement>('.node') ?? null;
       }
     }
-    return null;
+    return editor.scopeRootId;
   }
   document.addEventListener('pointerdown', event => {
     if (editor.preview || event.button !== 0 || state) return;
     const target = event.target as HTMLElement;
     if (target.closest('.component-tile button,.node-label button')) return;
     const tile = target.closest<HTMLElement>('.component-tile');
-    const element = target.closest<HTMLElement>('.node');
-    const node = editor.store.doc.nodes.find(node => node.id === element?.dataset.id);
-    const background = event.target === editor.canvas || (node && isContainer(node) && event.composedPath().some(part => part instanceof HTMLElement && part === editor.renderer.content(node.id)) && element?.dataset.id === node.id);
+    const rawElement = target.closest<HTMLElement>('.node');
+    const raw = editor.store.doc.nodes.find(node => node.id === rawElement?.dataset.id);
+    const node = editor.hitNode(target, event.altKey);
+    const element = node ? editor.renderer.element(node.id)! : null;
+    const background = event.target === editor.canvas || (raw && raw.id === node?.id && isContainer(raw) && (raw.id === editor.scopeRootId || event.altKey) && event.composedPath().some(part => part instanceof HTMLElement && part === editor.renderer.content(raw.id)));
     if (!tile && !element && !background) return;
     if (!tile && !background && node?.id === editor.scopeRootId) { event.preventDefault(); editor.select(node.id); return; }
     if (!tile && !background && node && event.shiftKey) { event.preventDefault(); editor.select(node.id, true); return; }
@@ -56,7 +58,7 @@ export function setupGestures(editor: Editor, combinations: Combinations) {
     }
     state = { pointer: event.pointerId, kind, x: p.x, y: p.y, active: false, roots, added,
       worlds: new Map(roots.map(item => [item.id, kind === 'add' ? { col: item.col, row: item.row, colSpan: item.colSpan, rowSpan: item.rowSpan } : editor.logicalRect(item.id)])),
-      candidate: [], valid: false, parentId: background && node ? node.id : null, element: tile ?? element ?? editor.canvas, selection: background && !event.shiftKey ? new Set() : oldSelection };
+      candidate: [], valid: false, parentId: background ? node?.id ?? editor.scopeRootId : null, element: tile ?? element ?? editor.canvas, selection: background && !event.shiftKey ? new Set() : oldSelection };
     state.element.setPointerCapture(event.pointerId);
     event.preventDefault();
   });
@@ -78,7 +80,7 @@ export function setupGestures(editor: Editor, combinations: Combinations) {
     document.querySelectorAll('.drop-target').forEach(element => element.classList.remove('drop-target'));
     if (parentId) editor.renderer.element(parentId)?.classList.add('drop-target');
     const parent = editor.store.doc.nodes.find(node => node.id === parentId);
-    const origin = editor.origin(parentId); const dx = Math.round(p.x - s.x), dy = Math.round(p.y - s.y);
+    const origin = editor.origin(parentId); const dx = Math.round((p.x - s.x) / origin.scaleX), dy = Math.round((p.y - s.y) / origin.scaleY);
     const rootIds = new Set(s.roots.map(node => node.id));
     const updates = new Map<string, Placement>();
     for (const node of s.roots) {
@@ -88,8 +90,8 @@ export function setupGestures(editor: Editor, combinations: Combinations) {
         const min = registry.get(node.type)!.min;
         candidate.colSpan = Math.max(min[0], node.colSpan + dx); candidate.rowSpan = Math.max(min[1], node.rowSpan + dy);
       } else if (parent && parent.layout?.mode !== 'free') { candidate.col = 0; candidate.row = 0; }
-      else if (s.kind === 'add') { candidate.col = Math.round(p.x - origin.col - node.colSpan / 2); candidate.row = Math.round(p.y - origin.row - node.rowSpan / 2); }
-      else { candidate.col = world.col + dx - origin.col; candidate.row = world.row + dy - origin.row; }
+      else if (s.kind === 'add') { candidate.col = Math.round((p.x - origin.col) / origin.scaleX - node.colSpan / 2); candidate.row = Math.round((p.y - origin.row) / origin.scaleY - node.rowSpan / 2); }
+      else { candidate.col = (world.col - origin.col) / origin.scaleX + dx; candidate.row = (world.row - origin.row) / origin.scaleY + dy; }
       updates.set(node.id, candidate);
     }
     let nodes = [...editor.store.doc.nodes, ...s.added].map(node => updates.get(node.id) ?? node);
@@ -105,8 +107,10 @@ export function setupGestures(editor: Editor, combinations: Combinations) {
     const viewport = document.getElementById('viewport')!.getBoundingClientRect();
     const inside = event.clientX >= viewport.left && event.clientX <= viewport.right && event.clientY >= viewport.top && event.clientY <= viewport.bottom;
     const inPage = p.x >= 0 && p.y >= 0 && p.x * GRID.cell <= editor.pageSize.width && p.y * GRID.cell <= editor.pageSize.height;
+    nodes = editor.prepareNodes(nodes);
     s.candidate = nodes; s.valid = inside && inPage && !editor.pageError(nodes) && !validateTree(nodes);
-    const preview = bounds([...updates.values()].map(node => ({ ...node, col: node.col + origin.col, row: node.row + origin.row })));
+    const preview = bounds([...updates.values()].map(node => ({ ...node, col: node.col * origin.scaleX + origin.col, row: node.row * origin.scaleY + origin.row,
+      colSpan: node.colSpan * origin.scaleX, rowSpan: node.rowSpan * origin.scaleY })));
     if (parent && parent.layout?.mode !== 'free') { preview.col = p.x - preview.colSpan / 2; preview.row = p.y - preview.rowSpan / 2; }
     Object.assign(editor.ghost.style, { left: `${preview.col * GRID.cell}px`, top: `${preview.row * GRID.cell}px`, width: `${preview.colSpan * GRID.cell}px`, height: `${preview.rowSpan * GRID.cell}px` });
     editor.ghost.hidden = !inside; editor.ghost.classList.toggle('invalid', !s.valid);

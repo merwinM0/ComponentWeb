@@ -7,7 +7,7 @@ const assert = (value: unknown, message: string) => { if (!value) throw new Erro
 
 export async function checkDesigner(source: Page) {
   const context = await source.context().browser()!.newContext({ viewport: { width: 1440, height: 1000 } });
-  const panel = { ...createNode('layout.container'), id: 'design-panel', col: 2, row: 2, colSpan: 50, rowSpan: 30 };
+  const panel = { ...createNode('layout.container'), id: 'design-panel', col: 2, row: 2, colSpan: 50, rowSpan: 30, design: { width: 600, height: 360 } };
   panel.props.title = '主容器'; panel.props.borderWidth = 0; panel.layout!.padding = 0;
   const button = { ...createNode('basic.button'), id: 'edit-button', parentId: panel.id, col: 1, row: 1 };
   button.props.title = '原按钮';
@@ -29,7 +29,7 @@ export async function checkDesigner(source: Page) {
     await pick(panel.id); await page.locator('#edit-component').click();
     assert(await page.locator('#designer-panel').isVisible(), '选中组件进入独立网格页');
     assert(await page.locator('#workspace-heading').textContent() === '组件设计页', '页面身份明确');
-    assert(await page.locator('#canvas').evaluate(element => element.style.width === '600px' && element.style.height === '360px'), '网格匹配当前组件尺寸');
+    assert(await page.locator('#canvas').evaluate(element => element.style.width === '960px' && element.style.height === '720px' && element.style.getPropertyValue('--grid-cell') === '12px'), '设计网格与工作区尺寸、步长一致');
     assert(await page.locator('.node').count() === 2 && await node(metric.id).count() === 0, '只展示当前子树');
     assert(await page.locator('#delete').isDisabled(), '设计根不可误删');
     await page.locator('#designer-width').fill('9999'); await page.locator('#designer-width').dispatchEvent('change'); await page.locator('#designer-save').click();
@@ -48,7 +48,7 @@ export async function checkDesigner(source: Page) {
     await pick(panel.id); await page.locator('#edit-component').click(); await page.locator('#zoom').selectOption('0.75');
     await node(button.id).dblclick();
     assert(await page.locator('#designer-breadcrumbs button').count() === 3, '多级设计面包屑');
-    assert(await page.locator('#canvas').evaluate(element => element.style.width === '168px'), '下一层有自己的设计画布');
+    assert(await page.locator('#canvas').evaluate(element => element.style.width === '960px' && element.style.height === '720px'), '下一层保留工作区大小的设计网格');
     const leafId = await page.locator('.scope-root > .component-host > .node').getAttribute('data-id'); assert(leafId && leafId !== button.id, '普通组件转为可嵌套组合时保留外部 ID，内容独立');
     await pick(leafId!); await page.locator('#prop-title').fill('深层按钮'); await page.locator('#prop-title').press('Tab');
     await page.locator('#designer-save').click();
@@ -68,9 +68,9 @@ export async function checkDesigner(source: Page) {
 
     // 父页发生碰撞时，保留设计页，不吞掉用户的设计。
     await pick(panel.id); await page.locator('#edit-component').click();
-    await page.locator('#designer-width').fill('900'); await page.locator('#designer-width').press('Tab'); await page.locator('#designer-save').click();
+    await page.locator('#designer-display-width').fill('900'); await page.locator('#designer-display-width').press('Tab'); await page.locator('#designer-save').click();
     assert(await page.locator('#designer-panel').isVisible() && await saved() === applied, '应用失败时父页不变且草稿可继续修正');
-    await page.locator('#designer-width').fill('600'); await page.locator('#designer-width').press('Tab'); await closeDiscard();
+    await page.locator('#designer-display-width').fill('600'); await page.locator('#designer-display-width').press('Tab'); await closeDiscard();
 
     await page.getByRole('button', { name: '我的组合', exact: true }).click(); await page.locator('#create-combination').click();
     assert(await page.locator('#designer-panel').isVisible() && await page.locator('.node').count() === 1, '单独创建进入空白组件设计页');
@@ -100,7 +100,7 @@ export async function checkDesigner(source: Page) {
     const canvas = (await page.locator('#canvas').boundingBox())!; await page.mouse.click(canvas.x + 850, canvas.y + 500);
     await page.locator('#new-container').click(); await page.locator('#designer-save').click();
     assert(await page.locator('#designer-panel').isVisible(), '父页无空间时不丢弃新组件草稿');
-    await page.locator('#designer-width').fill('240'); await page.locator('#designer-width').press('Tab'); await page.locator('#designer-height').fill('120'); await page.locator('#designer-height').press('Tab');
+    await page.locator('#designer-display-width').fill('240'); await page.locator('#designer-display-width').press('Tab'); await page.locator('#designer-display-height').fill('120'); await page.locator('#designer-display-height').press('Tab');
     await page.locator('#designer-save').click(); assert(await page.locator('#designer-panel').isHidden(), '调整尺寸后可将独立设计插回父页');
     await page.locator('#undo').click(); await page.locator('#save').click(); assert(await saved() === applied, '新组件插入可一次撤销');
     assert(!errors.length, `设计页运行错误：${errors.join('; ')}`);

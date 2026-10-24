@@ -57,7 +57,7 @@ describe('容器与嵌套', () => {
     const polluted = { ...container, layout: { ...container.layout, unknown: '忽略' } };
     expect(parseDocument(JSON.stringify({ ...doc, nodes: [polluted] })).nodes[0].layout).toEqual(container.layout!);
     expect(() => parseDocument(JSON.stringify({ ...doc, nodes: [{ ...container, layout: [] }] }))).toThrow();
-    const tiny = { ...container, colSpan: 4, rowSpan: 4, layout: { ...container.layout!, padding: 96 } };
+    const tiny = { ...container, colSpan: 4, rowSpan: 4, design: { width: 48, height: 48 }, layout: { ...container.layout!, padding: 96 } };
     expect(validateTree([tiny])).toContain('内边距');
   });
   test('复制整个子树使用新 ID，保留内部引用与样式，顺序调整不丢节点', () => {

@@ -9,6 +9,7 @@ import { contentSize } from '../core/tree';
 import { layoutPanel } from './layout-panel';
 import { layerPanel } from './layers';
 import { renderMulti } from './selection-actions';
+import { isContainer } from '../core/types';
 
 function section(title: string, english: string) {
   const heading = document.createElement('div');
@@ -41,10 +42,10 @@ export function setupInspector(editor: Editor) {
           <div class="field-grid">
             <label class="field">位置 X（px）<input id="prop-col" name="col" type="number" min="0" max="${(area.cols - node.colSpan) * GRID.cell}" step="any" required></label>
             <label class="field">位置 Y（px）<input id="prop-row" name="row" type="number" min="0" max="${(area.rows - node.rowSpan) * GRID.cell}" step="any" required></label>
-            <label class="field">宽度 W（px）<input id="prop-colSpan" name="colSpan" type="number" min="${definition.min[0] * GRID.cell}" max="${(automatic ? GRID.cols : area.cols - node.col) * GRID.cell}" step="any" required></label>
-            <label class="field">高度 H（px）<input id="prop-rowSpan" name="rowSpan" type="number" min="${definition.min[1] * GRID.cell}" max="${(automatic ? GRID.rows : area.rows - node.row) * GRID.cell}" step="any" required></label>
+            <label class="field">${isContainer(node) ? '显示宽 W' : '宽度 W'}（px）<input id="prop-colSpan" name="colSpan" type="number" min="${definition.min[0] * GRID.cell}" max="${(automatic ? GRID.cols : area.cols - node.col) * GRID.cell}" step="any" required></label>
+            <label class="field">${isContainer(node) ? '显示高 H' : '高度 H'}（px）<input id="prop-rowSpan" name="rowSpan" type="number" min="${definition.min[1] * GRID.cell}" max="${(automatic ? GRID.rows : area.rows - node.row) * GRID.cell}" step="any" required></label>
           </div>
-          <p class="inspector-help">拖动按 ${GRID.cell}px 吸附；输入框单位为像素。${automatic ? `<br>位置由父容器自动排版；输入为请求尺寸，Grid 宽度由列控制。实际 ${editor.renderer.element(node.id)?.offsetWidth} × ${editor.renderer.element(node.id)?.offsetHeight} px。` : ''}<br>最小 ${definition.min[0] * GRID.cell} × ${definition.min[1] * GRID.cell} px</p>
+          <p class="inspector-help">拖动按 ${GRID.cell}px 吸附；输入框单位为像素。${automatic ? `<br>位置由父容器自动排版；输入为请求尺寸，Grid 宽度由列控制。实际 ${Math.round(editor.logicalRect(node.id).colSpan * GRID.cell)} × ${Math.round(editor.logicalRect(node.id).rowSpan * GRID.cell)} px。` : ''}${isContainer(node) ? '<br>显示宽高仅缩放整体；内部设计尺寸可在下方设置。' : parent ? '<br>子项尺寸与坐标使用父容器的内部设计网格。' : ''}${node.id === editor.scopeRootId ? '<br>本页根组件按设计基准 1:1 显示，显示宽高在返回父页后生效。' : ''}<br>最小 ${definition.min[0] * GRID.cell} × ${definition.min[1] * GRID.cell} px</p>
           <div class="section-title">组件内容 <span>CONTENT</span></div>
           <label class="field full">标题 / 文本<input id="prop-title" name="title" type="text" maxlength="120"></label>
           <label class="field full">${definition.contentLabel ?? (node.type === 'data.metric' ? '指标数值' : '说明文字')}<textarea id="prop-description" name="description" maxlength="1000"></textarea></label>

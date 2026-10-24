@@ -6,6 +6,7 @@ import { isContainer, type ContainerLayout } from '../core/types';
 import { alignNodes, cloneForest, distributeNodes, groupNodes, moveNodes, placeForest, reorderNodes, type Alignment } from '../core/operations';
 import type { Props } from '../components/contract';
 import { CanvasRenderer } from './canvas-renderer';
+import { growDesign, insertionSpace } from '../core/design-bounds';
 import { $, toast } from './dom';
 export { $, toast } from './dom';
 
@@ -36,7 +37,15 @@ export class Editor {
   }
   get scopeRootId() { return this.getScopeRoot(); }
   get scopeRoot() { return this.store.doc.nodes.find(node => node.id === this.scopeRootId); }
-  get pageSize() { return this.scopeRoot ? { width: this.scopeRoot.colSpan * GRID.cell, height: this.scopeRoot.rowSpan * GRID.cell } : CANVAS; }
+  get pageSize() { return CANVAS; }
+  hitNode(target: HTMLElement, deep = false) {
+    const id = target.closest<HTMLElement>('.node')?.dataset.id;
+    let node = this.store.doc.nodes.find(item => item.id === id);
+    if (!node) return undefined;
+    if (deep || this.selectedIds.has(node.id) || (node.parentId !== null && node.parentId !== this.scopeRootId && this.selection.some(item => item.parentId === node!.parentId))) return node;
+    while (node.parentId && node.parentId !== this.scopeRootId) node = this.store.doc.nodes.find(item => item.id === node!.parentId)!;
+    return node;
+  }
   pageError(nodes: Placement[]): string | null {
     if (!this.scopeRootId) return null;
     const roots = nodes.filter(node => !node.parentId);
@@ -60,7 +69,7 @@ export class Editor {
   }
   selectAll(parentId: string | null = null) { this.setSelection(childrenOf(this.store.doc.nodes, parentId ?? this.scopeRootId).map(node => node.id)); }
   private selectionStatus() {
-    $('selection-status').textContent = this.selectedIds.size > 1 ? `已选择 ${this.selectedIds.size} 个组件 · Shift 点击增减选择` : this.node ? `${this.node.props.title || '组件'} · ${this.renderer.element(this.node.id)?.offsetWidth} × ${this.renderer.element(this.node.id)?.offsetHeight} px` : '未选择组件 · 空白处拖动框选';
+    $('selection-status').textContent = this.selectedIds.size > 1 ? `已选择 ${this.selectedIds.size} 个组件 · Shift 点击增减选择` : this.node ? `${this.node.props.title || '组件'} · ${Math.round(this.logicalRect(this.node.id).colSpan * GRID.cell)} × ${Math.round(this.logicalRect(this.node.id).rowSpan * GRID.cell)} px` : '未选择组件 · 空白处拖动框选';
     document.querySelectorAll<HTMLButtonElement>('[data-selection-action]').forEach(button => { button.disabled = this.preview || !this.selectedIds.size; });
   }
   previewColors(id: string, props: Props) { this.colorPreviewId = id; this.renderer.preview(id, props); if (id === this.scopeRootId && props.background) this.canvas.style.setProperty('--canvas-background', props.background); }
@@ -79,9 +88,11 @@ export class Editor {
     $<HTMLButtonElement>('undo').disabled = !this.store.canUndo || this.preview; $<HTMLButtonElement>('redo').disabled = !this.store.canRedo || this.preview;
     this.selectionStatus(); this.onSelection();
   }
+  prepareNodes(nodes: Placement[]) { return growDesign(nodes, this.store.doc.nodes, this.scopeRootId); }
   commit(nodes: Placement[], ids?: Iterable<string>) {
     if (this.preview) return false;
     try {
+      nodes = this.prepareNodes(nodes);
       const pageError = this.pageError(nodes); if (pageError) throw new Error(pageError);
       const doc = parseDocument(JSON.stringify({ ...this.store.doc, nodes }));
       const unchanged = JSON.stringify(doc) === JSON.stringify(this.store.doc);
@@ -97,7 +108,7 @@ export class Editor {
   add(type: string, placement?: Placement, parentId: string | null = null) {
     if (this.preview) return;
     const target = parentId ?? this.scopeRootId;
-    const node = placement ? { ...placement, parentId: placement.parentId ?? target } : findSpace({ ...createNode(type), parentId: target }, this.store.doc.nodes);
+    const node = placement ? { ...placement, parentId: placement.parentId ?? target } : findSpace({ ...createNode(type), parentId: target }, insertionSpace(this.store.doc.nodes, target, this.scopeRootId));
     if (!node) { toast('没有可用空间，可调整容器尺寸或使用自动布局'); return; }
     this.commit([...this.store.doc.nodes, node], [node.id]);
   }
@@ -115,13 +126,13 @@ export class Editor {
       const roots = this.selection;
       if (roots.some(node => node.parentId !== roots[0].parentId)) throw new Error('复制时请选择同一父级的组件');
       const copies = cloneForest(this.store.doc.nodes, this.selectedIds);
-      this.commit([...this.store.doc.nodes, ...placeForest(copies.nodes, copies.roots, this.store.doc.nodes, roots[0].parentId)], copies.roots);
+      this.commit([...this.store.doc.nodes, ...placeForest(copies.nodes, copies.roots, insertionSpace(this.store.doc.nodes, roots[0].parentId, this.scopeRootId), roots[0].parentId)], copies.roots);
     } catch (error) { toast((error as Error).message); }
   }
   insertSnapshot(snapshot: Document, parentId: string | null = null, position?: { col: number; row: number }) {
     try {
       const copies = cloneForest(snapshot.nodes, snapshot.nodes.filter(node => !node.parentId).map(node => node.id));
-      this.commit([...this.store.doc.nodes, ...placeForest(copies.nodes, copies.roots, this.store.doc.nodes, parentId ?? this.scopeRootId, position)], copies.roots);
+      this.commit([...this.store.doc.nodes, ...placeForest(copies.nodes, copies.roots, insertionSpace(this.store.doc.nodes, parentId ?? this.scopeRootId, this.scopeRootId), parentId ?? this.scopeRootId, position)], copies.roots);
     } catch (error) { toast((error as Error).message); }
   }
   logicalRect(id: string) {
@@ -130,7 +141,11 @@ export class Editor {
   }
   origin(parentId: string | null) {
     const target = this.renderer.content(parentId); const rect = target.getBoundingClientRect(); const canvas = this.canvas.getBoundingClientRect();
-    return { col: (rect.left - canvas.left) / this.zoom / GRID.cell - target.scrollLeft / GRID.cell, row: (rect.top - canvas.top) / this.zoom / GRID.cell - target.scrollTop / GRID.cell };
+    const style = getComputedStyle(target);
+    const scaleX = parentId ? rect.width / this.zoom / parseFloat(style.width) : 1;
+    const scaleY = parentId ? rect.height / this.zoom / parseFloat(style.height) : 1;
+    return { col: (rect.left - canvas.left) / this.zoom / GRID.cell - target.scrollLeft / GRID.cell * scaleX,
+      row: (rect.top - canvas.top) / this.zoom / GRID.cell - target.scrollTop / GRID.cell * scaleY, scaleX, scaleY };
   }
   reparent(parentId: string | null) {
     const roots = this.selection; const selected = new Set(roots.map(node => node.id));
@@ -138,16 +153,16 @@ export class Editor {
     const origin = this.origin(parentId); const parent = this.store.doc.nodes.find(node => node.id === parentId);
     const geometries = new Map(roots.map(node => [node.id, this.logicalRect(node.id)]));
     this.commit(this.store.doc.nodes.map(node => selected.has(node.id) ? { ...node, parentId,
-      col: parent?.layout?.mode !== 'free' && parent ? 0 : geometries.get(node.id)!.col - origin.col,
-      row: parent?.layout?.mode !== 'free' && parent ? 0 : geometries.get(node.id)!.row - origin.row } : node));
+      col: parent?.layout?.mode !== 'free' && parent ? 0 : (geometries.get(node.id)!.col - origin.col) / origin.scaleX,
+      row: parent?.layout?.mode !== 'free' && parent ? 0 : (geometries.get(node.id)!.row - origin.row) / origin.scaleY } : node));
   }
   ungroup() {
     const node = this.node; if (!node || !isContainer(node)) return;
     const origin = this.origin(node.parentId);
     const geometries = new Map(childrenOf(this.store.doc.nodes, node.id).map(child => [child.id, this.logicalRect(child.id)]));
     const nodes = this.store.doc.nodes.filter(other => other.id !== node.id).map(other => geometries.has(other.id) ? { ...other, parentId: node.parentId,
-      col: geometries.get(other.id)!.col - origin.col, row: geometries.get(other.id)!.row - origin.row,
-      colSpan: geometries.get(other.id)!.colSpan, rowSpan: geometries.get(other.id)!.rowSpan } : other);
+      col: (geometries.get(other.id)!.col - origin.col) / origin.scaleX, row: (geometries.get(other.id)!.row - origin.row) / origin.scaleY,
+      colSpan: geometries.get(other.id)!.colSpan / origin.scaleX, rowSpan: geometries.get(other.id)!.rowSpan / origin.scaleY } : other);
     this.commit(nodes, geometries.keys());
   }
   changeLayout(layout: ContainerLayout) {
@@ -157,7 +172,8 @@ export class Editor {
       const origin = this.origin(node.id);
       const delta = (layout.padding - node.layout!.padding) / GRID.cell;
       const positions = new Map(childrenOf(nodes, node.id).map(child => [child.id, this.logicalRect(child.id)]));
-      nodes = nodes.map(child => positions.has(child.id) ? { ...child, ...positions.get(child.id)!, col: positions.get(child.id)!.col - origin.col - delta, row: positions.get(child.id)!.row - origin.row - delta } : child);
+      nodes = nodes.map(child => positions.has(child.id) ? { ...child, colSpan: positions.get(child.id)!.colSpan / origin.scaleX, rowSpan: positions.get(child.id)!.rowSpan / origin.scaleY,
+        col: (positions.get(child.id)!.col - origin.col) / origin.scaleX - delta, row: (positions.get(child.id)!.row - origin.row) / origin.scaleY - delta } : child);
     }
     if (!this.commit(nodes.map(other => other.id === node.id ? { ...other, layout } : other))) this.onSelection();
   }
@@ -168,7 +184,7 @@ export class Editor {
     this.commit(reorderNodes(this.store.doc.nodes, this.selectedIds, before));
   }
   setZoom(value: number) {
-    this.zoom = value; this.canvas.style.transform = `scale(${value})`;
+    this.zoom = value; this.renderer.zoom = value; this.canvas.style.transform = `scale(${value})`;
     $('canvas-shell').style.width = `${this.pageSize.width * value}px`; $('canvas-shell').style.height = `${this.pageSize.height * value}px`;
   }
   setPreview() {

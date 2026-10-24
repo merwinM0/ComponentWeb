@@ -12,8 +12,7 @@ export function setupContextMenu(editor: Editor, combinations: Combinations, dia
     if (document.querySelector('dialog[open]')) return;
     cancelGesture(); returnFocus = document.activeElement as HTMLElement;
     const tile = target?.closest<HTMLElement>('.component-tile');
-    const nodeElement = target?.closest<HTMLElement>('.node');
-    const node = editor.store.doc.nodes.find(node => node.id === nodeElement?.dataset.id);
+    const node = target ? editor.hitNode(target) : editor.node;
     if (!editor.preview && node && !editor.selectedIds.has(node.id)) editor.select(node.id);
     else if (!editor.preview && target && !node && target.closest('#viewport')) editor.select(null);
     let title = editor.preview ? '预览模式' : node ? (editor.selectedIds.size > 1 ? `${editor.selectedIds.size} 个组件` : node.props.title || '组件操作') : '工作台功能';
@@ -27,7 +26,8 @@ export function setupContextMenu(editor: Editor, combinations: Combinations, dia
     } else if (!editor.preview && editor.selectedIds.size) actions.push(...selectionActions(editor).filter(action => !action.disabled));
     if (!editor.preview && !tile) {
       actions.push({ label: '全选当前同级组件', run: () => editor.selectAll(node?.parentId ?? null) },
-        { label: '在新页面设计容器', run: () => editor.onNewComponent(node && isContainer(node) ? node.id : node?.parentId ?? editor.scopeRootId) });
+        { label: '在新页面设计容器', disabled: node?.id === editor.scopeRootId, run: () => node && isContainer(node) ? editor.onEditComponent(node.id) : editor.onNewComponent(node?.parentId ?? editor.scopeRootId) });
+      if (node && isContainer(node)) actions.push({ label: '在新页面新建子容器', run: () => editor.onNewComponent(node.id) });
     }
     actions.push({ label: '撤销', disabled: editor.preview || !editor.store.canUndo, run: () => editor.store.undo() }, { label: '重做', disabled: editor.preview || !editor.store.canRedo, run: () => editor.store.redo() },
       { label: editor.preview ? '返回编辑' : '进入预览', run: () => $('preview').click() }, { label: editor.scopeRootId ? '应用当前组件设计' : '保存当前布局', run: () => $('save').click() });

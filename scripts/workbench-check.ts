@@ -37,6 +37,7 @@ export async function checkWorkbench(source: Page) {
     assert(await page.locator('.node[data-container="true"]').count() === 1, '组合为真实容器');
     const rootId = await page.locator('.node.selected').getAttribute('data-id'); assert(rootId, '生成容器 ID');
     assert(await page.locator('.container-host > .node').count() === 3, '子项挂载进容器，而非仅画选中框');
+    await page.locator('#layout-design-height').fill('240'); await page.locator('#layout-design-height').press('Tab');
     await page.locator('#prop-rowSpan').fill('240'); await page.locator('#prop-rowSpan').press('Tab');
     await page.locator('#layout-mode').selectOption('flex');
     assert(await page.locator('.container-children').evaluate(element => getComputedStyle(element).display) === 'flex', '真实 CSS Flex 布局');
@@ -60,7 +61,7 @@ export async function checkWorkbench(source: Page) {
     assert(await page.locator('.node[data-container="true"]').count() === 1, '一次撤销恢复容器和子树');
     await page.locator('.container-add select').selectOption('layout.container'); await page.getByRole('button', { name: '添加到此容器', exact: true }).click();
     assert(await page.locator('#designer-panel').isVisible(), '创建嵌套容器进入独立设计页');
-    await page.locator('#designer-height').fill('120'); await page.locator('#designer-height').press('Tab'); await page.locator('#designer-save').click();
+    await page.locator('#designer-height').fill('120'); await page.locator('#designer-height').press('Tab'); await page.locator('#designer-display-height').fill('120'); await page.locator('#designer-display-height').press('Tab'); await page.locator('#designer-save').click();
     const innerId = await page.locator('.node.selected').getAttribute('data-id'); assert(innerId && innerId !== rootId, '可以嵌套容器');
     await page.locator('#prop-rowSpan').fill('120'); await page.locator('#prop-rowSpan').press('Tab');
     await page.locator('.container-add select').selectOption('basic.button'); await page.getByRole('button', { name: '添加到此容器', exact: true }).click();

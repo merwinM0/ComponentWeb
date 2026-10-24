@@ -1,5 +1,6 @@
 import { Designer, type DesignerView } from '../core/designer';
 import { GRID, CANVAS } from '../core/grid';
+import { designSize, displayScale } from '../core/design-space';
 import { isContainer } from '../core/types';
 import type { Combinations } from '../core/combinations';
 import type { setupCombinationDialogs } from './combination-dialogs';
@@ -51,7 +52,12 @@ export function setupDesignerPage(editor: Editor, designer: Designer, combinatio
     if (designer.frames.slice(depth).some(frame => JSON.stringify(frame.store.doc) !== frame.baseline)) confirm.showModal();
     else designer.discardTo(depth);
   }
-  editor.onEditComponent = id => perform(() => designer.openNode(id, view(), editor.renderer.element(id) ? editor.logicalRect(id) : undefined));
+  editor.onEditComponent = id => perform(() => {
+    const node = editor.store.doc.nodes.find(node => node.id === id)!;
+    const rect = editor.renderer.element(id) ? editor.logicalRect(id) : undefined;
+    const space = editor.origin(node.parentId);
+    designer.openNode(id, view(), rect ? { colSpan: rect.colSpan / space.scaleX, rowSpan: rect.rowSpan / space.scaleY } : undefined);
+  });
   editor.onNewComponent = (parentId?: string | null) => perform(() => designer.create(view(), 'insert', parentId ?? (editor.node && isContainer(editor.node) ? editor.node.id : editor.scopeRootId)));
   editor.onEditSavedCombination = id => perform(() => { const item = combinations.items.find(item => item.id === id); if (!item) throw new Error('组合不存在'); designer.openTemplate(item.document, item.id, item.name, view()); });
   $('new-container').addEventListener('click', () => editor.onNewComponent());
@@ -63,7 +69,7 @@ export function setupDesignerPage(editor: Editor, designer: Designer, combinatio
   $('designer-save-as').addEventListener('click', () => { if (validInputs()) perform(() => dialogs.saveDocument(designer.snapshot(), designer.root!.props.title)); });
   editor.canvas.addEventListener('dblclick', event => {
     if (editor.preview) return;
-    const id = (event.target as HTMLElement).closest<HTMLElement>('.node')?.dataset.id;
+    const id = editor.hitNode(event.target as HTMLElement, event.altKey)?.id;
     if (id && id !== editor.scopeRootId) editor.onEditComponent(id);
   });
   const sizeForm = $<HTMLFormElement>('designer-size');
@@ -72,8 +78,10 @@ export function setupDesignerPage(editor: Editor, designer: Designer, combinatio
   sizeForm.addEventListener('change', event => {
     if (!sizeForm.reportValidity() || !designer.root) return;
     const input = event.target as HTMLInputElement; const root = designer.root;
-    const changed = input.name === 'title' ? { ...root, props: { ...root.props, title: input.value.trim() || '未命名组件' } } : { ...root, [input.name]: Number(input.value) / GRID.cell };
-    if (!editor.update(changed)) { input.value = input.name === 'title' ? root.props.title : String(root[input.name as 'colSpan' | 'rowSpan'] * GRID.cell); }
+    const changed = input.name === 'title' ? { ...root, props: { ...root.props, title: input.value.trim() || '未命名组件' } }
+      : input.name.startsWith('design') ? { ...root, design: { ...designSize(root), [input.name === 'designWidth' ? 'width' : 'height']: Number(input.value) } }
+      : { ...root, [input.name]: Number(input.value) / GRID.cell };
+    if (!editor.update(changed)) { input.blur(); render(); }
   });
   window.addEventListener('beforeunload', event => { if (designer.current) { event.preventDefault(); event.returnValue = ''; } });
   function render() {
@@ -87,7 +95,8 @@ export function setupDesignerPage(editor: Editor, designer: Designer, combinatio
     if (!root) { $<HTMLButtonElement>('save').disabled = false; $('save').textContent = '保存布局 ↗'; document.title = 'ComponentWeb · 网格组件工作台'; return; }
     const template = designer.current!.kind === 'library' || designer.current!.kind === 'template';
     const label = template ? '保存组合并返回' : '应用到父页并返回';
-    $('designer-note').textContent = designer.current!.source && !isContainer(designer.current!.source!) ? '原组件作为组合内容保留。选中内部组件编辑文案，扩展尺寸继续嵌套；应用后成为组合容器。' : '双击子组件可进入下一层。尺寸可扩展；应用时才会修改父页。';
+    const scale = displayScale(root);
+    $('designer-note').textContent = `${designer.current!.source && isContainer(designer.current!.source!) ? '沿用原组合的结构与设计基准。' : '保留已有内容，双击可继续进入下一层。'}整张网格可编辑，自由排版超出虚线框自动扩展基准；工作区按宽 ${(scale.x * 100).toFixed(1)}%、高 ${(scale.y * 100).toFixed(1)}% 显示。`;
     $('designer-save').textContent = label; $('save').textContent = template ? '保存组合' : '应用并返回';
     $<HTMLButtonElement>('save').disabled = editor.preview;
     $('save-state').textContent = designer.dirty ? '● 设计草稿 · 尚未应用' : '独立设计页';
@@ -99,7 +108,7 @@ export function setupDesignerPage(editor: Editor, designer: Designer, combinatio
       if (index === designer.frames.length - 1) button.setAttribute('aria-current', 'page');
       button.addEventListener('click', () => leave(index + 1)); crumbs.append(separator, button);
     });
-    for (const [id, value] of [['designer-title', root.props.title], ['designer-width', Math.round(root.colSpan * GRID.cell * 1e6) / 1e6], ['designer-height', Math.round(root.rowSpan * GRID.cell * 1e6) / 1e6]] as const) {
+    for (const [id, value] of [['designer-title', root.props.title], ['designer-width', designSize(root).width], ['designer-height', designSize(root).height], ['designer-display-width', Math.round(root.colSpan * GRID.cell * 1e6) / 1e6], ['designer-display-height', Math.round(root.rowSpan * GRID.cell * 1e6) / 1e6]] as const) {
       const input = $<HTMLInputElement>(id); if (document.activeElement !== input) input.value = String(value); input.disabled = editor.preview;
     }
     $('designer-properties').toggleAttribute('disabled', editor.preview); $('designer-save-as').toggleAttribute('disabled', editor.preview); $('designer-save').toggleAttribute('disabled', editor.preview);

@@ -4,6 +4,7 @@ import { isValidShape, shapeOf } from '../components/shape';
 import { GRID, LEGACY_GRID, FINE_GRID, matchesGrid } from './grid';
 import { DEFAULT_APPEARANCE, DEFAULT_LAYOUT, isContainer, type ContainerLayout, type Document, type Placement } from './types';
 import { contentSize, placementError, validateTree } from './tree';
+import { validDesign } from './design-space';
 export { GRID } from './grid';
 export { DEFAULT_APPEARANCE, DEFAULT_LAYOUT, isContainer } from './types';
 export type { ContainerLayout, Document, Placement } from './types';
@@ -18,7 +19,7 @@ export function createNode(type: string): Placement {
     id: crypto.randomUUID(), type, parentId: null, col: 0, row: 0,
     colSpan: definition.size[0], rowSpan: definition.size[1],
     props: { source: '', ...definition.defaults, ...colorsOf(definition.defaults), ...shapeOf(definition.defaults) },
-    ...(type === 'layout.container' ? { layout: { ...DEFAULT_LAYOUT } } : {}),
+    ...(type === 'layout.container' ? { layout: { ...DEFAULT_LAYOUT }, design: { width: definition.size[0] * GRID.cell, height: definition.size[1] * GRID.cell } } : {}),
   };
 }
 export function findSpace(node: Placement, nodes: Placement[]): Placement | undefined {
@@ -64,6 +65,9 @@ export function parseDocument(raw: string): Document {
       props: { title: source.props.title, description: source.props.description, ...colors, ...shapeOf(source.props), source: source.props.source ?? '' } };
     if (node.parentId !== null && (typeof node.parentId !== 'string' || !node.parentId)) throw new Error('父容器 ID 无效');
     if (isContainer(node)) {
+      const size = source.design === undefined ? { width: node.colSpan * GRID.cell, height: node.rowSpan * GRID.cell } : source.design;
+      if (!validDesign(size)) throw new Error('组件内部设计尺寸无效');
+      node.design = { width: size.width, height: size.height };
       if (source.layout !== undefined && (!source.layout || typeof source.layout !== 'object' || Array.isArray(source.layout))) throw new Error('容器布局设置无效');
       const layout = { ...DEFAULT_LAYOUT, ...source.layout };
       if (!validLayout(layout)) throw new Error('容器布局设置无效');

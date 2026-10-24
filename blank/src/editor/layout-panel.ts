@@ -2,6 +2,8 @@ import { components } from '../components/registry';
 import { descendants } from '../core/tree';
 import { isContainer, type ContainerLayout } from '../core/types';
 import type { Editor } from './editor';
+import { designSize } from '../core/design-space';
+import { CANVAS } from '../core/grid';
 
 export function layoutPanel(editor: Editor) {
   const container = document.createElement('div');
@@ -13,6 +15,20 @@ export function layoutPanel(editor: Editor) {
   for (const other of editor.store.doc.nodes) if (isContainer(other) && other.id !== editor.scopeRootId && !excluded.has(other.id)) parent.append(new Option(`${other.props.title || '容器'} · ${other.id.slice(0, 5)}`, other.id));
   parent.value = node.parentId ?? ''; parent.addEventListener('change', () => { editor.reparent(parent.value || null); editor.onSelection(); }); label.append(parent); container.append(label);
   if (!isContainer(node)) return container;
+  const sizeForm = document.createElement('form'); sizeForm.className = 'layout-form';
+  sizeForm.innerHTML = `<div class="section-title">内部设计尺寸 <span>DESIGN SPACE</span></div><div class="field-grid">
+    <label class="field">基准宽（px）<input id="layout-design-width" name="width" type="number" min="48" max="${CANVAS.width}" step="any" required></label>
+    <label class="field">基准高（px）<input id="layout-design-height" name="height" type="number" min="48" max="${CANVAS.height}" step="any" required></label></div>
+    <p class="inspector-help">子项坐标、字号、间距以此为基准。外部显示宽高按比例缩放整体，不改写内部布局。</p>`;
+  const size = designSize(node);
+  for (const key of ['width', 'height'] as const) { const input = sizeForm.elements.namedItem(key) as HTMLInputElement; input.value = String(size[key]); input.disabled = editor.preview; }
+  sizeForm.addEventListener('submit', event => event.preventDefault());
+  sizeForm.addEventListener('change', event => {
+    if (!sizeForm.reportValidity()) return;
+    const input = event.target as HTMLInputElement;
+    if (!editor.update({ ...node, design: { ...size, [input.name]: Number(input.value) } })) editor.onSelection();
+  });
+  container.append(sizeForm);
   const form = document.createElement('form'); form.className = 'layout-form';
   form.innerHTML = `<div class="section-title">容器布局 <span>LAYOUT ENGINE</span></div>
     <label class="field">布局方式<select id="layout-mode" name="mode"><option value="free">自由定位</option><option value="flex">Flex 弹性布局</option><option value="grid">Grid 网格布局</option></select></label>

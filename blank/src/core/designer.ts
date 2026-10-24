@@ -1,4 +1,6 @@
 import { createNode, findSpace, parseDocument } from './model';
+import { CANVAS, GRID } from './grid';
+import { growDesign, insertionSpace } from './design-bounds';
 import { Store } from './store';
 import { StoreRouter } from './store-router';
 import { descendants } from './tree';
@@ -43,26 +45,20 @@ export class Designer {
     let nodes = structuredClone(tree);
     const root = nodes.find(node => node.id === id)!;
     root.parentId = null; root.col = 0; root.row = 0;
-    if (rendered) { root.colSpan = rendered.colSpan; root.rowSpan = rendered.rowSpan; }
     if (!isContainer(root)) {
+      // 仅普通组件包装时采用父设计坐标系中的实际尺寸；已有组合绝不能被显示缩放改写基准。
+      if (rendered) { root.colSpan = rendered.colSpan; root.rowSpan = rendered.rowSpan; }
       const wrapper = createNode('layout.container'); wrapper.id = root.id; wrapper.colSpan = root.colSpan; wrapper.rowSpan = root.rowSpan;
+      wrapper.design = { width: root.colSpan * GRID.cell, height: root.rowSpan * GRID.cell };
       wrapper.props.title = root.props.title || '组件组合'; wrapper.props.radius = root.props.radius; wrapper.props.borderWidth = 0;
       wrapper.layout!.padding = 0;
       root.id = crypto.randomUUID(); root.parentId = wrapper.id;
       nodes = [wrapper, root];
     }
-    if (rendered) {
-      try { clean({ ...doc, nodes }); }
-      catch {
-        // 现有内容可能超出自动布局后的可视尺寸；保留原请求尺寸，不裁掉内容。
-        const draftRoot = nodes.find(node => !node.parentId)!; draftRoot.colSpan = source.colSpan; draftRoot.rowSpan = source.rowSpan;
-        if (!isContainer(source)) { root.colSpan = source.colSpan; root.rowSpan = source.rowSpan; }
-      }
-    }
     this.enter({ ...doc, nodes }, { kind: 'node', parentView: view, insertParent: source.parentId, source: structuredClone(source), sourceTree: JSON.stringify(tree) });
   }
   create(view: DesignerView, kind: 'insert' | 'library', parentId: string | null = null) {
-    const root = createNode('layout.container'); root.props.title = kind === 'library' ? '未命名组合' : '新组件'; root.props.borderWidth = 0; root.layout!.padding = 0;
+    const root = createNode('layout.container'); root.design = { ...CANVAS }; root.props.title = kind === 'library' ? '未命名组合' : '新组件'; root.props.borderWidth = 0; root.layout!.padding = 0;
     this.enter({ ...this.router.doc, nodes: [root] }, { kind, insertParent: parentId, parentView: view });
   }
   openTemplate(document: Document, id: string, name: string, view: DesignerView) {
@@ -70,7 +66,7 @@ export class Designer {
     const doc = clean(document); const root = doc.nodes.find(node => !node.parentId);
     if (!root || doc.nodes.filter(node => !node.parentId).length !== 1) throw new Error('组合快照格式无效');
     if (!isContainer(root)) {
-      const wrapper = createNode('layout.container'); wrapper.colSpan = root.colSpan; wrapper.rowSpan = root.rowSpan; wrapper.props.title = name; wrapper.props.borderWidth = 0; wrapper.layout!.padding = 0;
+      const wrapper = createNode('layout.container'); wrapper.colSpan = root.colSpan; wrapper.rowSpan = root.rowSpan; wrapper.design = { width: root.colSpan * GRID.cell, height: root.rowSpan * GRID.cell }; wrapper.props.title = name; wrapper.props.borderWidth = 0; wrapper.layout!.padding = 0;
       root.parentId = wrapper.id; root.col = 0; root.row = 0; doc.nodes.push(wrapper);
     }
     this.enter(doc, { kind: 'template', templateId: id, templateName: name, parentView: view, insertParent: null });
@@ -85,6 +81,7 @@ export class Designer {
     const frame = this.current; if (!frame) return;
     if (frame.kind === 'library' || frame.kind === 'template') throw new Error('请先保存到我的组合');
     const draft = this.snapshot(); const root = draft.nodes.find(node => node.id === frame.rootId)!;
+    const parentScope = this.frames.at(-2)?.rootId ?? null;
     let nodes: Placement[];
     if (frame.kind === 'node') {
       const source = frame.source!; const all = descendants(frame.parent.doc.nodes, [source.id]);
@@ -98,11 +95,11 @@ export class Designer {
       // 插入由真实组件边界寻找空位；父级自动布局则追加子项。
       const parentId = frame.insertParent;
       if (parentId && !frame.parent.doc.nodes.some(node => node.id === parentId && isContainer(node))) throw new Error('原父容器已不存在');
-      const placed = findInsertion(root, frame.parent.doc.nodes, parentId);
-      if (!placed) throw new Error('父页没有足够空间，请缩小组件、另存组合或取消返回');
+      const placed = findInsertion(root, insertionSpace(frame.parent.doc.nodes, parentId, parentScope), parentId);
+      if (!placed) throw new Error('父页没有足够空间，请缩小显示尺寸、另存组合或取消返回');
       Object.assign(root, placed); nodes = [...frame.parent.doc.nodes, ...draft.nodes];
     }
-    const result = clean({ ...frame.parent.doc, nodes }); // 先整体校验，失败时草稿与父页均保留。
+    const result = clean({ ...frame.parent.doc, nodes: growDesign(nodes, frame.parent.doc.nodes, parentScope) }); // 先整体校验，失败时草稿与父页均保留。
     frame.parent.commit(result); this.close([root.id]);
   }
   close(selection?: string[]) {

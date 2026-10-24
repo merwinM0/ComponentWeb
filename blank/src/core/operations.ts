@@ -1,4 +1,5 @@
 import { createNode, findSpace, type Placement } from './model';
+import { GRID } from './grid';
 import { bounds, descendants, topSelection } from './tree';
 import { isContainer, type ContainerLayout } from './types';
 
@@ -53,6 +54,7 @@ export function groupNodes(nodes: Placement[], ids: Iterable<string>, mode: Cont
   Object.assign(container, box, { parentId: selected[0].parentId,
     colSpan: Math.max(box.colSpan, 4), rowSpan: Math.max(box.rowSpan, 4),
     props: { ...container.props, borderWidth: 0 }, layout: { ...container.layout!, mode, padding: mode === 'free' ? 0 : 12 } });
+  container.design = { width: container.colSpan * GRID.cell, height: container.rowSpan * GRID.cell };
   const selectedIds = new Set(selected.map(node => node.id));
   const result = nodes.map(node => selectedIds.has(node.id) ? { ...node, parentId: container.id, col: node.col - box.col, row: node.row - box.row } : node);
   result.push(container);

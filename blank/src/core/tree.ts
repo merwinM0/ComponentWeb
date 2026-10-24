@@ -1,6 +1,7 @@
 import { registry } from '../components/registry';
 import { GRID } from './grid';
 import { isContainer, type Placement } from './types';
+import { designSize, validDesign } from './design-space';
 
 export const EPS = 1e-6;
 export const childrenOf = (nodes: Placement[], parentId: string | null) => nodes.filter(node => node.parentId === parentId);
@@ -24,7 +25,8 @@ export function contentSize(parent?: Placement) {
   if (!parent) return { cols: GRID.cols as number, rows: GRID.rows as number };
   const border = parent.props.borderStyle === 'none' ? 0 : (parent.props.borderWidth ?? 1);
   const inset = ((parent.layout?.padding ?? 12) + border) * 2 / GRID.cell;
-  return { cols: Math.max(0, parent.colSpan - inset), rows: Math.max(0, parent.rowSpan - inset) };
+  const size = designSize(parent);
+  return { cols: Math.max(0, size.width / GRID.cell - inset), rows: Math.max(0, size.height / GRID.cell - inset) };
 }
 export const overlaps = (a: Placement, b: Placement) => a.col < b.col + b.colSpan - EPS && a.col + a.colSpan > b.col + EPS && a.row < b.row + b.rowSpan - EPS && a.row + a.rowSpan > b.row + EPS;
 export function placementError(node: Placement, nodes: Placement[]): string | null {
@@ -34,7 +36,9 @@ export function placementError(node: Placement, nodes: Placement[]): string | nu
   if (isContainer(node)) {
     const border = node.props.borderStyle === 'none' ? 0 : (node.props.borderWidth ?? 1);
     const inset = ((node.layout?.padding ?? 12) + border) * 2;
-    if (node.colSpan * GRID.cell < inset + 1 || node.rowSpan * GRID.cell < inset + 1) return '容器尺寸不足以容纳边框和内边距';
+    if (node.design !== undefined && !validDesign(node.design)) return '组件内部设计尺寸无效';
+    const size = designSize(node);
+    if (size.width < inset + 1 || size.height < inset + 1) return '容器尺寸不足以容纳边框和内边距';
   }
   const parent = node.parentId ? nodes.find(other => other.id === node.parentId) : undefined;
   if (node.parentId && (!parent || !isContainer(parent))) return '父级不是可用的布局容器';

@@ -7,7 +7,7 @@ import { Combinations } from './combinations';
 
 const view: DesignerView = { selection: ['panel'], zoom: 0.75, left: 12, top: 24 };
 function setup() {
-  const panel = { ...createNode('layout.container'), id: 'panel', col: 2, row: 2, colSpan: 30, rowSpan: 20 };
+  const panel = { ...createNode('layout.container'), id: 'panel', col: 2, row: 2, colSpan: 30, rowSpan: 20, design: { width: 360, height: 240 } };
   panel.layout!.padding = 0; panel.props.borderWidth = 0;
   const child = { ...createNode('basic.button'), id: 'leaf', parentId: panel.id, col: 1, row: 1 };
   const other = { ...createNode('basic.button'), id: 'other', col: 40, row: 2 };
@@ -47,11 +47,11 @@ describe('独立组件设计页', () => {
     expect(designer.root!.colSpan).toBe(20); expect(router.doc.nodes.find(node => node.type === 'basic.button')!.colSpan).toBe(20);
     designer.apply(); expect(workspace.doc.nodes.find(node => node.parentId === 'leaf')!.colSpan).toBe(20);
   });
-  test('可视尺寸放不下已有内容时回退请求尺寸，不裁剪数据', () => {
+  test('已有组合忽略缩放后的可视尺寸，沿用原基准且不裁剪数据', () => {
     const { workspace, router, designer } = setup();
     workspace.commit({ ...workspace.doc, nodes: workspace.doc.nodes.map(node => node.id === 'leaf' ? { ...node, col: 10 } : node) });
     designer.openNode('panel', view, { colSpan: 20, rowSpan: 20 });
-    expect(designer.root!.colSpan).toBe(30); expect(router.doc.nodes.find(node => node.id === 'leaf')!.col).toBe(10);
+    expect(designer.root!.colSpan).toBe(30); expect(designer.root!.design).toEqual({ width: 360, height: 240 }); expect(router.doc.nodes.find(node => node.id === 'leaf')!.col).toBe(10);
   });
   test('深层应用只进入父草稿，最后一次应用才改变主工作区', () => {
     const { workspace, router, designer } = setup(); const original = structuredClone(workspace.doc);
@@ -80,6 +80,15 @@ describe('独立组件设计页', () => {
     const id = designer.rootId!; router.commit({ ...router.doc, nodes: router.doc.nodes.map(node => node.id === id ? { ...node, colSpan: 14, rowSpan: 4 } : node) });
     designer.apply(); expect(workspace.doc.nodes.find(node => node.id === id)!.parentId).toBe('panel'); expect(designer.frames).toHaveLength(0);
     expect(parseDocument(JSON.stringify(workspace.doc))).toEqual(workspace.doc);
+  });
+  test('嵌套设计应用时可扩展父草稿基准，但不扩大父容器的外部边界', () => {
+    const { workspace, router, designer } = setup(); const original = structuredClone(workspace.doc);
+    designer.openNode('panel', view); designer.create(view, 'insert', 'panel'); const childId = designer.rootId!;
+    designer.apply(); expect(designer.frames).toHaveLength(1); expect(workspace.doc).toEqual(original);
+    expect(designer.root!.design!.width).toBeGreaterThan(360); expect(designer.root!.colSpan).toBe(30);
+    expect(router.doc.nodes.find(node => node.id === childId)!.parentId).toBe('panel');
+    designer.apply(); expect(workspace.doc.nodes.find(node => node.id === 'panel')!.colSpan).toBe(30);
+    workspace.undo(); expect(workspace.doc).toEqual(original);
   });
   test('新组合设计与已保存组合编辑都不会自动污染工作区', () => {
     const { workspace, designer } = setup(); const original = structuredClone(workspace.doc);
