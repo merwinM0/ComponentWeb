@@ -9,6 +9,7 @@ import { checkFineGrid } from './grid-check';
 import { checkWorkbench } from './workbench-check';
 import { checkNestingDrag } from './nesting-drag-check';
 import { checkInlineEditing } from './inline-edit-check';
+import { checkAssemblyRendering } from './assembly-render-check';
 
 const port = 3107;
 const url = `http://127.0.0.1:${port}`;
@@ -45,6 +46,7 @@ try {
   await checkNestingDrag(page);
   await checkWorkbench(page);
   await checkInlineEditing(page);
+  await checkAssemblyRendering(page);
   await audit(page, '初始工作台');
   await page.getByRole('button', { name: 'HTML 标签', exact: true }).click();
   assert(await page.locator('.component-tile').count() === components.filter(item => item.type.startsWith('html.')).length, 'HTML 分类计数');

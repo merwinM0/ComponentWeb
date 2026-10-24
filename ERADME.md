@@ -28,7 +28,7 @@ bunx playwright install chromium
 bun run test:browser
 ```
 
-浏览器脚本自动启动 3107 端口的测试服务器，并使用隔离上下文，结束后关闭服务器与浏览器，不使用日常工作区的存储。截图位于 `/tmp/componentweb-v4-nested.png`、`/tmp/componentweb-v2-desktop.png`、`/tmp/componentweb-v2-mobile.png` 和 `/tmp/componentweb-grid12.png`。原位编辑截图为 `/tmp/componentweb-inline-edit.png`、`/tmp/componentweb-inline-edit-mobile.png`。
+浏览器脚本自动启动 3107 端口的测试服务器，并使用隔离上下文，结束后关闭服务器与浏览器，不使用日常工作区的存储。截图位于 `/tmp/componentweb-v4-nested.png`、`/tmp/componentweb-v2-desktop.png`、`/tmp/componentweb-v2-mobile.png` 和 `/tmp/componentweb-grid12.png`。原位编辑截图为 `/tmp/componentweb-inline-edit.png`、`/tmp/componentweb-inline-edit-mobile.png`；组装显示与旧偏移背景回归截图为 `/tmp/componentweb-assembly-render.png`、`/tmp/componentweb-edit-background.png`。
 
 ## 核心能力
 
@@ -96,6 +96,7 @@ scripts/
   workbench-check.ts        # 多选、嵌套、组合和右键
   nesting-drag-check.ts     # 跨层拖动与删除恢复
   inline-edit-check.ts      # 原位标签编辑、散件门禁、嵌套与自动缩放
+  assembly-render-check.ts  # 散件可见性、右键命中、反复编辑与背景填充
 ```
 
 组件通过 `mount / update / destroy` 与编辑器解耦。布局容器使用 Shadow DOM 内的 slot 让真实子节点参与 CSS 排版，而不是把组件渲染成图片。目录源尺寸沿用 24px 设计单位，由注册表统一转换为当前网格单位。
@@ -110,7 +111,7 @@ scripts/
 
 ## 验证
 
-已通过 70 项单元测试、1060 次断言及类型检查，覆盖网格迁移、碰撞、多选排版、树结构、样式、组合快照及存储失败。原位编辑另覆盖标签样式白名单、临时叠放、未组装门禁、原位置恢复、多层草稿隔离、反复组装、删除与重建根、模板编辑和自动缩放。浏览器回归覆盖所有内置素材，另外实测多选、框选、批量撤销、Flex / Grid、子项排序、嵌套拖入 / 移出、组合保存与独立副本、右键键盘导航、滚轮 / 触屏滚动和四档响应式。
+已通过 71 项单元测试、1078 次断言及类型检查，覆盖网格迁移、碰撞、多选排版、树结构、样式、组合快照及存储失败。原位编辑另覆盖标签样式白名单、临时叠放、未组装门禁、原位置恢复、多层草稿隔离、反复组装、删除与重建根、模板编辑和自动缩放。浏览器回归覆盖所有内置素材，另外实测多选、框选、批量撤销、Flex / Grid、子项排序、嵌套拖入 / 移出、组合保存与独立副本、右键键盘导航、滚轮 / 触屏滚动和四档响应式。组装显示回归额外检查散件不被编辑框遮挡、右键不误入子项、保存重载后的完整子树、缩放拖动及旧偏移数据的背景填充。
 
 axe 对编辑器、代表性原生标签、组合组件和嵌套布局执行自动检查。自动检查不代替真实读屏器、其他浏览器及触屏设备的人工验收。
 

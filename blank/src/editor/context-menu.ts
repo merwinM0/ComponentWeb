@@ -37,9 +37,15 @@ export function setupContextMenu(editor: Editor, combinations: Combinations, dia
     const rect = menu.getBoundingClientRect(); menu.style.left = `${Math.max(8, Math.min(x, innerWidth - rect.width - 8))}px`; menu.style.top = `${Math.max(8, Math.min(y, innerHeight - rect.height - 8))}px`;
     menu.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus({ preventScroll: true });
   }
+  const nativeInput = (event: Event) => !event.composedPath().some(target => target instanceof HTMLElement && target.classList.contains('tag-editable')) && event.composedPath().some(target => target instanceof HTMLElement && (target.matches('input,textarea,select') || target.isContentEditable));
+  // 右键的默认焦点会先选中最深的可聚焦子项，必须在菜单命中判断前阻止它。
+  // 否则选中的整个组合会悄悄变成子组件，下一次编辑只显示该子树。
+  document.addEventListener('pointerdown', event => {
+    const target = event.target as HTMLElement;
+    if (event.button === 2 && !editor.preview && editor.canvas.contains(target) && target.closest('.node') && !nativeInput(event)) event.preventDefault();
+  }, true);
   document.addEventListener('contextmenu', event => {
-    const component = event.composedPath().some(target => target instanceof HTMLElement && target.classList.contains('tag-editable'));
-    if ((!component && event.composedPath().some(target => target instanceof HTMLElement && (target.matches('input,textarea,select') || target.isContentEditable))) || document.querySelector('dialog[open]')) return;
+    if (nativeInput(event) || document.querySelector('dialog[open]')) return;
     event.preventDefault(); show(event.clientX, event.clientY, event.target as HTMLElement);
   });
   menu.addEventListener('keydown', event => {

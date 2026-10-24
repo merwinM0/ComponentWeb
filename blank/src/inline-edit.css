@@ -2,11 +2,13 @@
 .context-layer { position:absolute;inset:0;pointer-events:none;z-index:1; }
 .editing-component .canvas::before { content:"";position:absolute;inset:0;background:#0007;pointer-events:none;z-index:0; }
 .editing-component .context-layer { opacity:.24;filter:grayscale(.65); }
-.editing-component .canvas > .node { z-index:2; }
-.editing-component .canvas > .node.selected { z-index:3; }
+.editing-component .canvas > .node { z-index:3; }
+.editing-component .canvas > .node.selected { z-index:4; }
+/* 编辑框始终在散件下方，选择编辑框也不能遮挡待组装内容。 */
+.editing-component .canvas > .node.scope-root { z-index:2; }
 .component-host.tag-editable { pointer-events:auto; }
 .editing-component .node-label { pointer-events:auto;cursor:move; }
-.node.scope-root { outline:1px dashed #8bd5ff;outline-offset:3px; }
+.node.scope-root { outline:1px dashed #8bd5ff;outline-offset:3px;background:var(--editing-background); }
 .context-layer .node { cursor:default; }
 .inline-editor { flex-shrink:0;padding:12px 24px;border-bottom:1px solid #294358;background:#10202e; }
 .inline-navigation { display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0; }

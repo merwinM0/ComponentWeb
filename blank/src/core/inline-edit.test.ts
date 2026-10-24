@@ -70,6 +70,30 @@ describe('工作区原位组件编辑', () => {
     expect(nodes.filter(node => node.type === 'layout.container')).toHaveLength(1);
     expect(nodes.find(node => node.id === root.id)!.colSpan).toBe(wrapper.colSpan);
   });
+  test('原生组件组装后保存重载、反复进入及嵌套修改均保留全部子项和相对坐标', () => {
+    const source = { ...createNode('content.card'), id: 'saved-root', col: 2, row: 2 };
+    const workspace = new Store({ ...initialDocument(), nodes: [source] }), router = new StoreRouter(workspace), session = new InlineEdit(router);
+    session.open(source.id, view); update(router, source.id, resizeEditingNode(session.root!, 600, 480));
+    const button = { ...createNode('basic.button'), id: 'saved-button', col: 4, row: 10 };
+    const paragraph = { ...createNode('html.p'), id: 'saved-paragraph', col: 22, row: 22 };
+    router.commit({ ...router.doc, nodes: [...router.doc.nodes, button, paragraph] }); session.assemble(); session.finish();
+    const saved = parseDocument(JSON.stringify(workspace.doc)), ids = saved.nodes.map(node => node.id);
+    const reloaded = new Store(saved), nextRouter = new StoreRouter(reloaded), nextSession = new InlineEdit(nextRouter);
+    for (let index = 0; index < 3; index++) {
+      nextSession.open(source.id, view);
+      expect(nextRouter.doc.nodes.map(node => node.id)).toEqual(ids);
+      expect(nextRouter.doc.nodes.find(node => node.id === button.id)).toMatchObject({ parentId: source.id, col: 2, row: 8 });
+      expect(nextRouter.doc.nodes.find(node => node.id === paragraph.id)).toMatchObject({ parentId: source.id, col: 20, row: 20 });
+      expect(nextSession.root!.design).toEqual({ width: 600, height: 480 });
+      nextSession.finish(); expect(reloaded.doc).toEqual(saved);
+    }
+    nextSession.open(source.id, view); nextSession.open(paragraph.id, view);
+    update(nextRouter, paragraph.id, { props: { ...nextSession.root!.props, title: '内层内容保留' } });
+    nextSession.finish(); nextSession.finish();
+    expect(reloaded.doc.nodes.map(node => node.id)).toEqual(ids);
+    expect(reloaded.doc.nodes.find(node => node.id === paragraph.id)).toMatchObject({ parentId: source.id, col: 20, row: 20, props: { title: '内层内容保留' } });
+    reloaded.undo(); expect(reloaded.doc).toEqual(saved);
+  });
   test('多层原位编辑逐级组装，内层完成只修改父草稿，不能绕过外层门禁', () => {
     const { workspace, router, session } = setup(), original = structuredClone(workspace.doc);
     session.open('root', view); const parentDraft = router.active;

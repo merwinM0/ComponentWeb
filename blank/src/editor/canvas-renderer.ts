@@ -1,5 +1,6 @@
 import { registry } from '../components/registry';
 import { shapeOf } from '../components/shape';
+import { colorsOf } from '../components/colors';
 import type { Props } from '../components/contract';
 import { GRID } from '../core/grid';
 import { designSize, displayScale } from '../core/design-space';
@@ -16,7 +17,7 @@ export class CanvasRenderer {
   private previewMode = false;
   zoom = 1;
   constructor(readonly canvas: HTMLElement, private focus: (id: string) => void) {}
-  preview(id: string, props: Props) { const item = this.mounted.get(id); if (item) { restoreTags(item.host); item.instance.update(props); applyTags(item.host, item.node.elements); } }
+  preview(id: string, props: Props) { const item = this.mounted.get(id); if (item) { restoreTags(item.host); item.instance.update(props); applyTags(item.host, item.node.elements); item.element.style.setProperty('--editing-background', colorsOf(props).background); } }
   tagHost(id: string) { const item = this.mounted.get(id); return item && !isContainer(item.node) ? item.host : undefined; }
   nativeFrame(id: string) {
     const item = this.mounted.get(id)!, style = getComputedStyle(item.host);
@@ -75,6 +76,8 @@ export class CanvasRenderer {
         item.element.tabIndex = preview ? -1 : 0;
         item.element.dataset.container = String(isContainer(node));
         item.element.classList.toggle('scope-root', node.id === scopeRootId);
+        // 编辑框背景独立于原生内容基准；兼容旧偏移数据，不改变标签布局和坐标。
+        item.element.style.setProperty('--editing-background', colorsOf(node.props).background);
         item.host.style.removeProperty('--container-background');
         item.host.classList.toggle('container-host', isContainer(node));
         item.host.inert = !preview && !scopeRootId && !isContainer(node);
