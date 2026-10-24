@@ -5,14 +5,24 @@ import { GRID } from '../core/grid';
 import { designSize, displayScale } from '../core/design-space';
 import { childrenOf } from '../core/tree';
 import { isContainer, type Document, type Placement } from '../core/types';
+import { workingSize } from '../core/assembly';
+import type { ElementEdit } from '../core/element-edits';
+import { applyTags, restoreTags } from './element-dom';
+import { measureNative, scaleNative } from './native-surface';
 
-type Mounted = { type: string; element: HTMLElement; host: HTMLElement; instance: ReturnType<NonNullable<ReturnType<typeof registry.get>>['mount']> };
+type Mounted = { type: string; node: Placement; element: HTMLElement; host: HTMLElement; instance: ReturnType<NonNullable<ReturnType<typeof registry.get>>['mount']> };
 export class CanvasRenderer {
   mounted = new Map<string, Mounted>();
   private previewMode = false;
   zoom = 1;
   constructor(readonly canvas: HTMLElement, private focus: (id: string) => void) {}
-  preview(id: string, props: Props) { this.mounted.get(id)?.instance.update(props); }
+  preview(id: string, props: Props) { const item = this.mounted.get(id); if (item) { restoreTags(item.host); item.instance.update(props); applyTags(item.host, item.node.elements); } }
+  tagHost(id: string) { const item = this.mounted.get(id); return item && !isContainer(item.node) ? item.host : undefined; }
+  previewElements(id: string, edits: ElementEdit[]) {
+    const item = this.mounted.get(id)!, style = getComputedStyle(item.host);
+    const base = item.node.surface ? item.node : { ...item.node, surface: { baseWidth: parseFloat(style.width), baseHeight: parseFloat(style.height), x: 0, y: 0, width: parseFloat(style.width), height: parseFloat(style.height) } };
+    restoreTags(item.host); applyTags(item.host, edits); return measureNative(item.host, base);
+  }
   clear() { for (const item of this.mounted.values()) { item.instance.destroy(); item.element.remove(); } this.mounted.clear(); }
   render(doc: Document, selected: Set<string>, preview: boolean, scopeRootId: string | null = null) {
     this.previewMode = preview;
@@ -31,7 +41,7 @@ export class CanvasRenderer {
           const host = document.createElement('div'); host.className = 'component-host';
           const handle = document.createElement('button'); handle.type = 'button'; handle.className = 'resize-handle'; handle.tabIndex = -1; handle.setAttribute('aria-label', '拖动调整尺寸，也可使用右侧宽高输入框');
           element.append(label, host, handle);
-          item = { type: node.type, element, host, instance: definition.mount(host, node.props) }; this.mounted.set(node.id, item);
+          item = { type: node.type, node, element, host, instance: definition.mount(host, node.props) }; this.mounted.set(node.id, item);
           element.addEventListener('focus', event => { if (event.target === element && !element.dataset.pointerFocus && !this.previewMode) this.focus(node.id); });
         }
         const current = [...target.children].filter(child => child.classList.contains('node'))[index];
@@ -45,15 +55,16 @@ export class CanvasRenderer {
           height: stretch ? 'auto' : `${node.rowSpan * GRID.cell}px`, minHeight: stretch ? `${node.rowSpan * GRID.cell}px` : '0',
           minWidth: auto ? `${minWidth}px` : '0', flex: '0 0 auto', borderRadius: `${shapeOf(node.props).radius}px`,
         });
-        if (node.id === scopeRootId) { const size = designSize(node); item.element.style.width = `${size.width}px`; item.element.style.height = `${size.height}px`; }
+        if (node.id === scopeRootId) { const size = workingSize(node); item.element.style.width = `${size.width}px`; item.element.style.height = `${size.height}px`; }
         item.element.tabIndex = preview ? -1 : 0;
         item.element.dataset.container = String(isContainer(node));
         item.element.classList.toggle('scope-root', node.id === scopeRootId);
-        if (node.id === scopeRootId && !preview) item.host.style.setProperty('--container-background', 'transparent');
-        else item.host.style.removeProperty('--container-background');
+        item.host.style.removeProperty('--container-background');
         item.host.classList.toggle('container-host', isContainer(node));
-        item.host.inert = !preview && !isContainer(node);
-        item.instance.update(node.props);
+        item.host.inert = !preview && !scopeRootId && !isContainer(node);
+        item.host.classList.toggle('tag-editable', !!scopeRootId && !isContainer(node));
+        item.node = node; restoreTags(item.host); item.instance.update(node.props); applyTags(item.host, node.elements);
+        if (scopeRootId && !isContainer(node)) item.host.shadowRoot!.querySelectorAll<HTMLElement>('button,input,select,textarea,a,[tabindex]').forEach(control => { control.tabIndex = -1; if (control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement) control.readOnly = true; });
         if (isContainer(node)) {
           const layout = node.layout!;
           const size = designSize(node);
@@ -69,6 +80,7 @@ export class CanvasRenderer {
           visit(node.id, item.host);
         }
         item.host.shadowRoot!.querySelectorAll<HTMLElement>('.box,.frame,article,.container-children').forEach(region => {
+          if (scopeRootId && !isContainer(node)) { region.tabIndex = -1; return; }
           if (region.scrollHeight > region.clientHeight || region.scrollWidth > region.clientWidth) { if (!region.hasAttribute('tabindex')) { region.tabIndex = 0; region.dataset.scrollFocus = 'true'; } }
           else if (region.dataset.scrollFocus) { region.removeAttribute('tabindex'); delete region.dataset.scrollFocus; }
         });
@@ -82,6 +94,7 @@ export class CanvasRenderer {
       item.host.shadowRoot!.querySelector<HTMLElement>('.container-surface')!.style.transform = `scale(${sx},${sy})`;
       const radius = shapeOf(node.props).radius; item.element.style.borderRadius = `${radius * sx}px / ${radius * sy}px`;
     }
+    for (const node of doc.nodes) if (!isContainer(node)) scaleNative(this.mounted.get(node.id)!.host, node, node.id === scopeRootId);
     this.selection(doc.nodes, selected, preview);
   }
   selection(nodes: Placement[], selected: Set<string>, preview: boolean) {
@@ -91,9 +104,9 @@ export class CanvasRenderer {
       item.element.classList.toggle('selected', active);
       item.element.setAttribute('aria-label', `${registry.get(node.type)!.title}${active ? '，已选中' : ''}${preview ? '，预览' : '，Shift 点击多选，方向键移动'}`);
       const label = item.element.querySelector<HTMLElement>(':scope > .node-label')!;
-      label.hidden = !active || item.element.classList.contains('scope-root'); label.textContent = `${node.props.title || registry.get(node.type)!.title} · ${Math.round(item.element.getBoundingClientRect().width / this.zoom)} × ${Math.round(item.element.getBoundingClientRect().height / this.zoom)} px`;
+      label.hidden = !active; label.textContent = `${node.props.title || registry.get(node.type)!.title} · ${Math.round(item.element.getBoundingClientRect().width / this.zoom)} × ${Math.round(item.element.getBoundingClientRect().height / this.zoom)} px`;
       const parent = nodes.find(other => other.id === node.parentId);
-      item.element.querySelector<HTMLElement>(':scope > .resize-handle')!.hidden = !active || selected.size !== 1 || item.element.classList.contains('scope-root') || (!!parent?.layout && parent.layout.mode !== 'free');
+      item.element.querySelector<HTMLElement>(':scope > .resize-handle')!.hidden = !active || selected.size !== 1 || (item.element.classList.contains('scope-root') && !isContainer(node)) || (!!parent?.layout && parent.layout.mode !== 'free');
     }
   }
   element(id: string) { return this.mounted.get(id)?.element; }

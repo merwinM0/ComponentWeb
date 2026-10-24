@@ -26,7 +26,8 @@ export function setupCombinationDialogs(editor: Editor, combinations: Combinatio
   });
   editor.onSaveCombination = () => {
     try {
-      snapshot = captureCombination(editor.store.doc, editor.selectedIds); renameId = null; updateId = null; onSaved = undefined;
+      snapshot = editor.session?.current ? editor.session.snapshot() : captureCombination(editor.store.doc, editor.selectedIds);
+      if (!snapshot.nodes.length) throw new Error('空组件不能保存为组合'); renameId = null; updateId = null; onSaved = undefined;
       $('combination-dialog-title').textContent = '保存到我的组合'; input.value = (editor.node?.props.title || `我的组合 ${combinations.items.length + 1}`).slice(0, 60); error.textContent = ''; dialog.showModal(); input.select();
     } catch (cause) { toast((cause as Error).message); }
   };

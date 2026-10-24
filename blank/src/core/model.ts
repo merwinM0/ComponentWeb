@@ -5,6 +5,7 @@ import { GRID, LEGACY_GRID, FINE_GRID, matchesGrid } from './grid';
 import { DEFAULT_APPEARANCE, DEFAULT_LAYOUT, isContainer, type ContainerLayout, type Document, type Placement } from './types';
 import { contentSize, placementError, validateTree } from './tree';
 import { validDesign } from './design-space';
+import { parseElementEdits, parseSurface } from './element-edits';
 export { GRID } from './grid';
 export { DEFAULT_APPEARANCE, DEFAULT_LAYOUT, isContainer } from './types';
 export type { ContainerLayout, Document, Placement } from './types';
@@ -38,9 +39,9 @@ export function validLayout(value: unknown): value is ContainerLayout {
   return ['free', 'flex', 'grid'].includes(v.mode) && ['row', 'column'].includes(v.direction) &&
     [v.gap, v.padding].every(number => Number.isInteger(number) && number >= 0 && number <= 96) &&
     Number.isInteger(v.columns) && v.columns >= 1 && v.columns <= 12 &&
-    ['start', 'center', 'end', 'stretch'].includes(v.align) && ['start', 'center', 'end', 'space-between'].includes(v.justify) && typeof v.wrap === 'boolean';
+    ['start', 'center', 'end', 'stretch'].includes(v.align) && ['start', 'center', 'end', 'space-between'].includes(v.justify) && typeof v.wrap === 'boolean' && typeof v.overlap === 'boolean';
 }
-export function parseDocument(raw: string): Document {
+export function parseDocument(raw: string, draft = false): Document {
   const doc = JSON.parse(raw);
   const v1 = doc?.schemaVersion === 1 && matchesGrid(doc.grid, LEGACY_GRID);
   const v2 = doc?.schemaVersion === 2 && matchesGrid(doc.grid, FINE_GRID);
@@ -73,9 +74,13 @@ export function parseDocument(raw: string): Document {
       if (!validLayout(layout)) throw new Error('容器布局设置无效');
       node.layout = Object.fromEntries(Object.keys(DEFAULT_LAYOUT).map(key => [key, layout[key as keyof ContainerLayout]])) as unknown as ContainerLayout;
     }
+    if (!isContainer(node)) {
+      if (source.elements !== undefined) node.elements = parseElementEdits(source.elements);
+      if (source.surface !== undefined) node.surface = parseSurface(source.surface);
+    }
     nodes.push(node);
   }
-  const error = validateTree(nodes);
+  const error = validateTree(nodes, draft);
   if (error) throw new Error(error);
   return { schemaVersion: 3, grid: { ...GRID }, appearance: { background: appearance.background, grid: appearance.grid }, nodes };
 }

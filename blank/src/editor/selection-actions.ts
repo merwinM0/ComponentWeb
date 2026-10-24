@@ -14,16 +14,16 @@ export function selectionActions(editor: Editor): Action[] {
     ...([['左对齐', 'left'], ['水平居中', 'center-x'], ['右对齐', 'right'], ['顶对齐', 'top'], ['垂直居中', 'center-y'], ['底对齐', 'bottom']] as const).map(([label, value]) => ({ label, run: () => editor.align(value), disabled: disabled || count < 2 || !free })),
     { label: '水平等间距', run: () => editor.distribute('x'), disabled: disabled || count < 3 || !free },
     { label: '垂直等间距', run: () => editor.distribute('y'), disabled: disabled || count < 3 || !free },
-    { label: '进入组件设计页', run: () => { if (editor.node) editor.onEditComponent(editor.node.id); }, disabled: disabled || !editor.node || protectedRoot },
-    { label: '组合为自由容器', run: () => editor.group('free'), disabled: disabled || !count || !free || protectedRoot },
-    { label: '组合为 Flex 容器', run: () => editor.group('flex'), disabled: disabled || !count || !free || protectedRoot },
-    { label: '组合为 Grid 容器', run: () => editor.group('grid'), disabled: disabled || !count || !free || protectedRoot },
-    { label: '解散容器', run: () => editor.ungroup(), disabled: disabled || !editor.node || !isContainer(editor.node) || protectedRoot },
+    { label: '编辑组件', run: () => { if (editor.node) editor.onEditComponent(editor.node.id); }, disabled: disabled || !editor.node || protectedRoot },
+    { label: editor.scopeRootId ? '组装本层' : '组合为自由容器', run: () => editor.group('free'), disabled: disabled || (editor.scopeRootId ? !editor.store.doc.nodes.length : !count || !free) },
+    { label: '组合为 Flex 容器', run: () => editor.group('flex'), disabled: disabled || !count || !free || !!editor.scopeRootId },
+    { label: '组合为 Grid 容器', run: () => editor.group('grid'), disabled: disabled || !count || !free || !!editor.scopeRootId },
+    { label: '解散容器', run: () => editor.ungroup(), disabled: disabled || !editor.node || !isContainer(editor.node) },
     { label: '保存到我的组合', run: () => editor.onSaveCombination(), disabled: disabled || !count || (count > 1 && !free) },
     { label: '前移一位', run: () => editor.reorder(-1), disabled: disabled || !canOrder },
     { label: '后移一位', run: () => editor.reorder(1), disabled: disabled || !canOrder },
-    { label: '复制所选', run: () => editor.duplicate(), disabled: disabled || !count || protectedRoot },
-    { label: '删除所选', run: () => editor.remove(), disabled: disabled || !count || protectedRoot, danger: true },
+    { label: '复制所选', run: () => editor.duplicate(), disabled: disabled || !count },
+    { label: '删除所选', run: () => editor.remove(), disabled: disabled || !count, danger: true },
   ];
 }
 export function actionButton(action: Action, menu = false) {

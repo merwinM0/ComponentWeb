@@ -3,6 +3,7 @@ import { registry } from '../components/registry';
 import { bounds, childrenOf, descendants, validateTree } from '../core/tree';
 import { cloneForest, reorderNodes } from '../core/operations';
 import { isContainer } from '../core/types';
+import { workingSize } from '../core/assembly';
 import type { Combinations } from '../core/combinations';
 import { Editor, toast } from './editor';
 
@@ -24,7 +25,7 @@ export function setupGestures(editor: Editor, combinations: Combinations) {
         element = element.parentElement?.closest<HTMLElement>('.node') ?? null;
       }
     }
-    return editor.scopeRootId;
+    return null;
   }
   document.addEventListener('pointerdown', event => {
     if (editor.preview || event.button !== 0 || state) return;
@@ -35,9 +36,8 @@ export function setupGestures(editor: Editor, combinations: Combinations) {
     const raw = editor.store.doc.nodes.find(node => node.id === rawElement?.dataset.id);
     const node = editor.hitNode(target, event.altKey);
     const element = node ? editor.renderer.element(node.id)! : null;
-    const background = event.target === editor.canvas || (raw && raw.id === node?.id && isContainer(raw) && (raw.id === editor.scopeRootId || event.altKey) && event.composedPath().some(part => part instanceof HTMLElement && part === editor.renderer.content(raw.id)));
+    const background = event.target === editor.canvas || (raw && raw.id === node?.id && isContainer(raw) && event.altKey && event.composedPath().some(part => part instanceof HTMLElement && part === editor.renderer.content(raw.id)));
     if (!tile && !element && !background) return;
-    if (!tile && !background && node?.id === editor.scopeRootId) { event.preventDefault(); editor.select(node.id); return; }
     if (!tile && !background && node && event.shiftKey) { event.preventDefault(); editor.select(node.id, true); return; }
     const p = point(event); const oldSelection = new Set(editor.selectedIds);
     let roots: Placement[] = [], added: Placement[] = [];
@@ -58,7 +58,7 @@ export function setupGestures(editor: Editor, combinations: Combinations) {
     }
     state = { pointer: event.pointerId, kind, x: p.x, y: p.y, active: false, roots, added,
       worlds: new Map(roots.map(item => [item.id, kind === 'add' ? { col: item.col, row: item.row, colSpan: item.colSpan, rowSpan: item.rowSpan } : editor.logicalRect(item.id)])),
-      candidate: [], valid: false, parentId: background ? node?.id ?? editor.scopeRootId : null, element: tile ?? element ?? editor.canvas, selection: background && !event.shiftKey ? new Set() : oldSelection };
+      candidate: [], valid: false, parentId: background ? node?.id ?? null : null, element: tile ?? element ?? editor.canvas, selection: background && !event.shiftKey ? new Set() : oldSelection };
     state.element.setPointerCapture(event.pointerId);
     event.preventDefault();
   });
@@ -76,7 +76,7 @@ export function setupGestures(editor: Editor, combinations: Combinations) {
     }
     const excluded = descendants(editor.store.doc.nodes, s.roots.map(node => node.id));
     if (s.kind !== 'add') for (const id of excluded) editor.renderer.element(id)?.classList.add('dragging');
-    const parentId = s.kind === 'resize' ? s.roots[0].parentId : dropTarget(event, excluded);
+    const parentId = s.kind === 'resize' || s.roots.some(node => node.id === editor.scopeRootId) ? s.roots[0].parentId : dropTarget(event, excluded);
     document.querySelectorAll('.drop-target').forEach(element => element.classList.remove('drop-target'));
     if (parentId) editor.renderer.element(parentId)?.classList.add('drop-target');
     const parent = editor.store.doc.nodes.find(node => node.id === parentId);
@@ -88,7 +88,8 @@ export function setupGestures(editor: Editor, combinations: Combinations) {
       const candidate = { ...node, parentId };
       if (s.kind === 'resize') {
         const min = registry.get(node.type)!.min;
-        candidate.colSpan = Math.max(min[0], node.colSpan + dx); candidate.rowSpan = Math.max(min[1], node.rowSpan + dy);
+        if (node.id === editor.scopeRootId && isContainer(node)) candidate.design = { width: Math.max(24, workingSize(node).width + dx * GRID.cell), height: Math.max(24, workingSize(node).height + dy * GRID.cell) };
+        else { candidate.colSpan = Math.max(min[0], node.colSpan + dx); candidate.rowSpan = Math.max(min[1], node.rowSpan + dy); }
       } else if (parent && parent.layout?.mode !== 'free') { candidate.col = 0; candidate.row = 0; }
       else if (s.kind === 'add') { candidate.col = Math.round((p.x - origin.col) / origin.scaleX - node.colSpan / 2); candidate.row = Math.round((p.y - origin.row) / origin.scaleY - node.rowSpan / 2); }
       else { candidate.col = (world.col - origin.col) / origin.scaleX + dx; candidate.row = (world.row - origin.row) / origin.scaleY + dy; }
@@ -108,9 +109,9 @@ export function setupGestures(editor: Editor, combinations: Combinations) {
     const inside = event.clientX >= viewport.left && event.clientX <= viewport.right && event.clientY >= viewport.top && event.clientY <= viewport.bottom;
     const inPage = p.x >= 0 && p.y >= 0 && p.x * GRID.cell <= editor.pageSize.width && p.y * GRID.cell <= editor.pageSize.height;
     nodes = editor.prepareNodes(nodes);
-    s.candidate = nodes; s.valid = inside && inPage && !editor.pageError(nodes) && !validateTree(nodes);
+    s.candidate = nodes; s.valid = inside && inPage && !editor.pageError(nodes) && !validateTree(nodes, !!editor.scopeRootId);
     const preview = bounds([...updates.values()].map(node => ({ ...node, col: node.col * origin.scaleX + origin.col, row: node.row * origin.scaleY + origin.row,
-      colSpan: node.colSpan * origin.scaleX, rowSpan: node.rowSpan * origin.scaleY })));
+      colSpan: (node.id === editor.scopeRootId ? workingSize(node).width / GRID.cell : node.colSpan) * origin.scaleX, rowSpan: (node.id === editor.scopeRootId ? workingSize(node).height / GRID.cell : node.rowSpan) * origin.scaleY })));
     if (parent && parent.layout?.mode !== 'free') { preview.col = p.x - preview.colSpan / 2; preview.row = p.y - preview.rowSpan / 2; }
     Object.assign(editor.ghost.style, { left: `${preview.col * GRID.cell}px`, top: `${preview.row * GRID.cell}px`, width: `${preview.colSpan * GRID.cell}px`, height: `${preview.rowSpan * GRID.cell}px` });
     editor.ghost.hidden = !inside; editor.ghost.classList.toggle('invalid', !s.valid);

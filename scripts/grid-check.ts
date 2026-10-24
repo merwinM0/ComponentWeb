@@ -13,7 +13,7 @@ export async function checkFineGrid(source: Page) {
     assert(await card.evaluate(element => element.style.left === '80px' && element.style.top === '72px' && element.style.width === '296px' && element.style.height === '192px'), '8px 旧布局迁移不改变像素几何');
     assert(await card.locator('article').evaluate(element => getComputedStyle(element).borderTopLeftRadius) === '16px', '迁移保留圆角');
     assert(await page.locator('#grid-cell-label').textContent() === '12 px 网格', '网格标识为 12px');
-    assert(await page.locator('#grid-dimensions').textContent() === '80 × 60', '网格数量正确');
+    assert(await page.locator('#canvas').evaluate(element => element.style.width === '960px' && element.style.height === '720px'), '移除标题后工作区仍为 960×720');
     assert(await page.locator('#canvas').evaluate(element => getComputedStyle(element).backgroundSize.includes('12px 12px')), '实际绘制 12px 网格');
     await card.focus(); await page.keyboard.press('ArrowRight'); assert(await card.evaluate(element => element.style.left) === '92px', '方向键移动 12px，保留原亚网格偏移');
     await page.keyboard.press('Shift+ArrowDown'); assert(await card.evaluate(element => element.style.top) === '132px', 'Shift 方向键移动 60px');

@@ -3,7 +3,7 @@ import { descendants } from '../core/tree';
 import { isContainer, type ContainerLayout } from '../core/types';
 import type { Editor } from './editor';
 import { designSize } from '../core/design-space';
-import { CANVAS } from '../core/grid';
+import { EDIT_SPACE } from '../core/grid';
 
 export function layoutPanel(editor: Editor) {
   const container = document.createElement('div');
@@ -11,14 +11,14 @@ export function layoutPanel(editor: Editor) {
   const excluded = descendants(editor.store.doc.nodes, [node.id]);
   const label = document.createElement('label'); label.className = 'field full'; label.textContent = '父容器';
   const parent = document.createElement('select'); parent.id = 'prop-parent'; parent.disabled = editor.preview || node.id === editor.scopeRootId;
-  parent.append(new Option(editor.scopeRootId ? '当前设计页（根级）' : '工作区（根级）', node.id === editor.scopeRootId ? '' : editor.scopeRootId ?? ''));
-  for (const other of editor.store.doc.nodes) if (isContainer(other) && other.id !== editor.scopeRootId && !excluded.has(other.id)) parent.append(new Option(`${other.props.title || '容器'} · ${other.id.slice(0, 5)}`, other.id));
+  parent.append(new Option(editor.scopeRootId ? '工作区散件（待组装）' : '工作区（根级）', ''));
+  for (const other of editor.store.doc.nodes) if (isContainer(other) && !excluded.has(other.id)) parent.append(new Option(`${other.props.title || '容器'} · ${other.id.slice(0, 5)}`, other.id));
   parent.value = node.parentId ?? ''; parent.addEventListener('change', () => { editor.reparent(parent.value || null); editor.onSelection(); }); label.append(parent); container.append(label);
   if (!isContainer(node)) return container;
   const sizeForm = document.createElement('form'); sizeForm.className = 'layout-form';
   sizeForm.innerHTML = `<div class="section-title">内部设计尺寸 <span>DESIGN SPACE</span></div><div class="field-grid">
-    <label class="field">基准宽（px）<input id="layout-design-width" name="width" type="number" min="48" max="${CANVAS.width}" step="any" required></label>
-    <label class="field">基准高（px）<input id="layout-design-height" name="height" type="number" min="48" max="${CANVAS.height}" step="any" required></label></div>
+    <label class="field">基准宽（px）<input id="layout-design-width" name="width" type="number" min="24" max="${EDIT_SPACE.width}" step="any" required></label>
+    <label class="field">基准高（px）<input id="layout-design-height" name="height" type="number" min="24" max="${EDIT_SPACE.height}" step="any" required></label></div>
     <p class="inspector-help">子项坐标、字号、间距以此为基准。外部显示宽高按比例缩放整体，不改写内部布局。</p>`;
   const size = designSize(node);
   for (const key of ['width', 'height'] as const) { const input = sizeForm.elements.namedItem(key) as HTMLInputElement; input.value = String(size[key]); input.disabled = editor.preview; }
@@ -39,7 +39,8 @@ export function layoutPanel(editor: Editor) {
     <label class="field full">交叉轴对齐<select name="align" id="layout-align"><option value="start">起点</option><option value="center">居中</option><option value="end">终点</option><option value="stretch">拉伸</option></select></label>
     <label class="field full">主轴分布<select name="justify" id="layout-justify"><option value="start">起点</option><option value="center">居中</option><option value="end">终点</option><option value="space-between">两端分布</option></select></label>
     <label class="check-field"><input name="wrap" id="layout-wrap" type="checkbox"> Flex 自动换行</label>
-    <p class="inspector-help">自动布局由真实 CSS Flex / Grid 排版，超出内容可滚动；拖动子项可调整顺序。自由布局仍禁止同级重叠。</p>`;
+    <label class="check-field"><input name="overlap" id="layout-overlap" type="checkbox"> 允许内部标签叠放</label>
+    <p class="inspector-help">自动布局由真实 CSS Flex / Grid 排版，超出内容可滚动；拖动子项可调整顺序。组件内部可开启叠放；工作区根组件仍禁止重叠。</p>`;
   for (const [key, value] of Object.entries(node.layout!)) {
     const control = form.elements.namedItem(key) as HTMLInputElement | HTMLSelectElement;
     if (typeof value === 'boolean') (control as HTMLInputElement).checked = value; else control.value = String(value);
@@ -51,7 +52,7 @@ export function layoutPanel(editor: Editor) {
     const data = new FormData(form);
     const layout: ContainerLayout = { mode: data.get('mode') as ContainerLayout['mode'], direction: data.get('direction') as ContainerLayout['direction'],
       gap: Number(data.get('gap')), padding: Number(data.get('padding')), columns: Number(data.get('columns')),
-      align: data.get('align') as ContainerLayout['align'], justify: data.get('justify') as ContainerLayout['justify'], wrap: data.has('wrap') };
+      align: data.get('align') as ContainerLayout['align'], justify: data.get('justify') as ContainerLayout['justify'], wrap: data.has('wrap'), overlap: data.has('overlap') };
     editor.changeLayout(layout);
   });
   container.append(form);
@@ -59,6 +60,6 @@ export function layoutPanel(editor: Editor) {
   const select = document.createElement('select'); select.setAttribute('aria-label', '要放入容器的组件');
   for (const item of components.filter(item => ['basic.button', 'content.card', 'basic.input', 'layout.container'].includes(item.type))) select.append(new Option(item.title, item.type));
   const button = document.createElement('button'); button.type = 'button'; button.textContent = '添加到此容器'; button.disabled = editor.preview;
-  button.addEventListener('click', () => select.value === 'layout.container' ? editor.onNewComponent(node.id) : editor.add(select.value, undefined, node.id)); add.append(select, button); container.append(add);
+  button.addEventListener('click', () => editor.add(select.value, undefined, node.id)); add.append(select, button); container.append(add);
   return container;
 }

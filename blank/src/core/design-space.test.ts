@@ -3,7 +3,7 @@ import { designSize, displayScale, validDesign } from './design-space';
 import { createNode, initialDocument, parseDocument } from './model';
 import { contentSize } from './tree';
 import { groupNodes, cloneForest } from './operations';
-import { Designer } from './designer';
+import { InlineEdit } from './inline-edit';
 import { Store } from './store';
 import { StoreRouter } from './store-router';
 import { FINE_GRID, LEGACY_GRID } from './grid';
@@ -52,27 +52,27 @@ describe('组合内部设计空间与外部显示尺寸', () => {
     expect(copied.nodes.find(node => !node.parentId)!.design).toEqual(group.container.design);
     expect(copied.nodes.find(node => !node.parentId)!.design).not.toBe(group.container.design);
   });
-  test('设计页沿用原结构，扩大基准不会改变外部显示范围，重新进入也不反向缩小', () => {
-    const workspace = new Store(fixture()), router = new StoreRouter(workspace), designer = new Designer(router);
+  test('原位编辑沿用原结构，扩大基准不改变外部范围，重新进入不反向缩小', () => {
+    const workspace = new Store(fixture()), router = new StoreRouter(workspace), designer = new InlineEdit(router);
     const original = structuredClone(workspace.doc);
-    designer.openNode('root', view, { colSpan: 25, rowSpan: 15 });
+    designer.open('root', view, undefined, { colSpan: 25, rowSpan: 15 });
     expect(designer.root!.design).toEqual({ width: 600, height: 360 }); expect(router.doc.nodes[1]).toEqual(original.nodes[1]);
     router.commit({ ...router.doc, nodes: router.doc.nodes.map(node => node.id === 'root' ? { ...node, design: { width: 960, height: 720 } } : node) });
-    expect(workspace.doc).toEqual(original); designer.apply();
+    expect(workspace.doc).toEqual(original); designer.finish();
     expect(workspace.doc.nodes[0]).toMatchObject({ col: 2, row: 2, colSpan: 25, rowSpan: 15, design: { width: 960, height: 720 } });
     expect(workspace.doc.nodes[1]).toEqual(original.nodes[1]);
-    designer.openNode('root', view); expect(designer.root!.design).toEqual({ width: 960, height: 720 }); designer.close();
+    designer.open('root', view); expect(designer.root!.design).toEqual({ width: 960, height: 720 }); designer.finish();
     workspace.undo(); expect(workspace.doc).toEqual(original);
     workspace.redo(); expect(workspace.doc.nodes[0].design).toEqual({ width: 960, height: 720 });
   });
-  test('新建独立容器默认使用完整工作区设计基准，显示尺寸单独保存', () => {
-    const workspace = new Store(initialDocument()), designer = new Designer(new StoreRouter(workspace));
-    designer.create(view, 'library'); expect(designer.root!.design).toEqual({ width: 960, height: 720 });
-    expect(designer.root!.colSpan * 12).toBe(576); expect(designer.root!.rowSpan * 12).toBe(384);
+  test('内部设计空间可大于工作区，外部显示范围保持原大小', () => {
+    const doc = fixture(); doc.nodes[0].design = { width: 1920, height: 1440 };
+    const result = parseDocument(JSON.stringify(doc)); expect(result.nodes[0].design).toEqual({ width: 1920, height: 1440 });
+    expect(result.nodes[0].colSpan).toBe(25); expect(result.nodes[1]).toEqual(doc.nodes[1]);
   });
   test('设计元数据拒绝非法数值，清除未知字段，叶子节点不保留设计配置', () => {
     const doc = fixture();
-    for (const value of [null, [], {}, { width: 0, height: 48 }, { width: '600', height: 360 }, { width: 961, height: 720 }, { width: 600, height: NaN }]) {
+    for (const value of [null, [], {}, { width: 0, height: 48 }, { width: '600', height: 360 }, { width: 3841, height: 720 }, { width: 600, height: NaN }]) {
       expect(validDesign(value)).toBe(false);
       expect(() => parseDocument(JSON.stringify({ ...doc, nodes: [{ ...doc.nodes[0], design: value }] }))).toThrow('设计尺寸');
     }

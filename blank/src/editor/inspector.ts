@@ -10,6 +10,9 @@ import { layoutPanel } from './layout-panel';
 import { layerPanel } from './layers';
 import { renderMulti } from './selection-actions';
 import { isContainer } from '../core/types';
+import { CANVAS, EDIT_SPACE } from '../core/grid';
+import { workingSize } from '../core/assembly';
+import { elementPanel } from './element-panel';
 
 function section(title: string, english: string) {
   const heading = document.createElement('div');
@@ -34,18 +37,19 @@ export function setupInspector(editor: Editor) {
       const definition = registry.get(node.type)!;
       const parent = editor.store.doc.nodes.find(other => other.id === node.parentId);
       const automatic = !!parent?.layout && parent.layout.mode !== 'free';
-      const area = contentSize(parent);
+      const area = editor.scopeRootId && !parent ? { cols: EDIT_SPACE.width / GRID.cell, rows: EDIT_SPACE.height / GRID.cell } : contentSize(parent);
+      const working = node.id === editor.scopeRootId ? workingSize(node) : { width: node.colSpan * GRID.cell, height: node.rowSpan * GRID.cell };
       container.innerHTML = `
         <div class="inspector-identity"><span class="identity-icon" aria-hidden="true">${definition.icon}</span><div><strong>${definition.title}</strong><small></small></div></div>
         <form id="properties">
           <div class="section-title">布局 <span>LAYOUT</span></div>
           <div class="field-grid">
-            <label class="field">位置 X（px）<input id="prop-col" name="col" type="number" min="0" max="${(area.cols - node.colSpan) * GRID.cell}" step="any" required></label>
-            <label class="field">位置 Y（px）<input id="prop-row" name="row" type="number" min="0" max="${(area.rows - node.rowSpan) * GRID.cell}" step="any" required></label>
-            <label class="field">${isContainer(node) ? '显示宽 W' : '宽度 W'}（px）<input id="prop-colSpan" name="colSpan" type="number" min="${definition.min[0] * GRID.cell}" max="${(automatic ? GRID.cols : area.cols - node.col) * GRID.cell}" step="any" required></label>
-            <label class="field">${isContainer(node) ? '显示高 H' : '高度 H'}（px）<input id="prop-rowSpan" name="rowSpan" type="number" min="${definition.min[1] * GRID.cell}" max="${(automatic ? GRID.rows : area.rows - node.row) * GRID.cell}" step="any" required></label>
+            <label class="field">位置 X（px）<input id="prop-col" name="col" type="number" min="0" max="${area.cols * GRID.cell - working.width}" step="any" required></label>
+            <label class="field">位置 Y（px）<input id="prop-row" name="row" type="number" min="0" max="${area.rows * GRID.cell - working.height}" step="any" required></label>
+            <label class="field">${isContainer(node) ? '显示宽 W' : '宽度 W'}（px）<input id="prop-colSpan" name="colSpan" type="number" min="${definition.min[0] * GRID.cell}" max="${node.id === editor.scopeRootId ? CANVAS.width : (automatic ? GRID.cols : area.cols - node.col) * GRID.cell}" step="any" required></label>
+            <label class="field">${isContainer(node) ? '显示高 H' : '高度 H'}（px）<input id="prop-rowSpan" name="rowSpan" type="number" min="${definition.min[1] * GRID.cell}" max="${node.id === editor.scopeRootId ? CANVAS.height : (automatic ? GRID.rows : area.rows - node.row) * GRID.cell}" step="any" required></label>
           </div>
-          <p class="inspector-help">拖动按 ${GRID.cell}px 吸附；输入框单位为像素。${automatic ? `<br>位置由父容器自动排版；输入为请求尺寸，Grid 宽度由列控制。实际 ${Math.round(editor.logicalRect(node.id).colSpan * GRID.cell)} × ${Math.round(editor.logicalRect(node.id).rowSpan * GRID.cell)} px。` : ''}${isContainer(node) ? '<br>显示宽高仅缩放整体；内部设计尺寸可在下方设置。' : parent ? '<br>子项尺寸与坐标使用父容器的内部设计网格。' : ''}${node.id === editor.scopeRootId ? '<br>本页根组件按设计基准 1:1 显示，显示宽高在返回父页后生效。' : ''}<br>最小 ${definition.min[0] * GRID.cell} × ${definition.min[1] * GRID.cell} px</p>
+          <p class="inspector-help">拖动按 ${GRID.cell}px 吸附；输入框单位为像素。${automatic ? `<br>位置由父容器自动排版；输入为请求尺寸，Grid 宽度由列控制。实际 ${Math.round(editor.logicalRect(node.id).colSpan * GRID.cell)} × ${Math.round(editor.logicalRect(node.id).rowSpan * GRID.cell)} px。` : ''}${isContainer(node) ? '<br>显示宽高仅缩放整体；内部设计尺寸可在下方设置。' : parent ? '<br>子项尺寸与坐标使用父容器的内部设计网格。' : ''}${node.id === editor.scopeRootId ? '<br>当前对象按内部尺寸原位编辑；移动仅用于编排，完成后回原位置并按显示宽高自动缩放。' : ''}<br>最小 ${definition.min[0] * GRID.cell} × ${definition.min[1] * GRID.cell} px</p>
           <div class="section-title">组件内容 <span>CONTENT</span></div>
           <label class="field full">标题 / 文本<input id="prop-title" name="title" type="text" maxlength="120"></label>
           <label class="field full">${definition.contentLabel ?? (node.type === 'data.metric' ? '指标数值' : '说明文字')}<textarea id="prop-description" name="description" maxlength="1000"></textarea></label>
@@ -59,7 +63,7 @@ export function setupInspector(editor: Editor) {
         if (input) input.value = node.props[key] ?? '';
       }
       form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input, textarea').forEach(control => { control.disabled = editor.preview; });
-      if (automatic || node.id === editor.scopeRootId) { $<HTMLInputElement>('prop-col').disabled = true; $<HTMLInputElement>('prop-row').disabled = true; }
+      if (automatic) { $<HTMLInputElement>('prop-col').disabled = true; $<HTMLInputElement>('prop-row').disabled = true; }
       if (parent?.layout?.mode === 'grid') $<HTMLInputElement>('prop-colSpan').disabled = true;
       form.addEventListener('submit', event => event.preventDefault());
       form.addEventListener('change', event => {
@@ -71,9 +75,10 @@ export function setupInspector(editor: Editor) {
         if (!editor.update(updated)) render();
       });
       if (node.id !== editor.scopeRootId) {
-        const design = document.createElement('button'); design.type = 'button'; design.className = 'edit-design-button'; design.textContent = '进入独立组件设计页 ↗'; design.disabled = editor.preview;
+        const design = document.createElement('button'); design.type = 'button'; design.className = 'edit-design-button'; design.textContent = '编辑组件（原位）'; design.disabled = editor.preview;
         design.addEventListener('click', () => editor.onEditComponent(node.id)); container.append(design);
       }
+      if (editor.scopeRootId && !isContainer(node)) container.append(elementPanel(editor, node));
       container.append(layoutPanel(editor));
       container.append(section('圆角与边框', 'SHAPE'));
       container.append(shapeControls(shapeOf(node.props), editor.preview,
@@ -106,19 +111,19 @@ export function setupInspector(editor: Editor) {
       actions.className = 'inspector-actions';
       actions.innerHTML = '<button id="duplicate" type="button">⧉ 复制</button><button id="delete" type="button" class="danger">⌫ 删除</button>';
       container.append(actions);
-      actions.querySelectorAll('button').forEach(button => { button.disabled = editor.preview || node.id === editor.scopeRootId; });
+      actions.querySelectorAll('button').forEach(button => { button.disabled = editor.preview; });
       $('duplicate').addEventListener('click', () => editor.duplicate());
       $('delete').addEventListener('click', () => editor.remove());
     }
     container.append(layerPanel(editor));
-    container.append(section(editor.scopeRootId ? '设计网格' : '画布配色', 'CANVAS'));
-    container.append(colorControls({ prefix: 'canvas', fields: editor.scopeRootId ? [['grid', '设计网格线色']] : [['background', '画布背景'], ['grid', '网格线色']],
+    container.append(section(editor.scopeRootId ? '工作区网格' : '画布配色', 'CANVAS'));
+    container.append(colorControls({ prefix: 'canvas', fields: editor.scopeRootId ? [['grid', '工作区网格线色']] : [['background', '画布背景'], ['grid', '网格线色']],
       values: editor.store.doc.appearance, disabled: editor.preview,
       preview: values => editor.applyAppearance(values as typeof DEFAULT_APPEARANCE),
       commit: values => editor.store.commit({ ...editor.store.doc, appearance: values as typeof DEFAULT_APPEARANCE }),
     }));
     const resetCanvas = document.createElement('button');
-    resetCanvas.className = 'reset-colors'; resetCanvas.textContent = editor.scopeRootId ? '↶ 恢复设计网格默认线色' : '↶ 恢复画布默认配色'; resetCanvas.disabled = editor.preview;
+    resetCanvas.className = 'reset-colors'; resetCanvas.textContent = editor.scopeRootId ? '↶ 恢复工作区网格默认线色' : '↶ 恢复画布默认配色'; resetCanvas.disabled = editor.preview;
     resetCanvas.addEventListener('click', () => editor.store.commit({ ...editor.store.doc, appearance: editor.scopeRootId ? { ...editor.store.doc.appearance, grid: DEFAULT_APPEARANCE.grid } : { ...DEFAULT_APPEARANCE } }));
     container.append(resetCanvas);
     if (restoreId) {

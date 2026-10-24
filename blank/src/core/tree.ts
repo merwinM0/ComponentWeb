@@ -1,5 +1,5 @@
 import { registry } from '../components/registry';
-import { GRID } from './grid';
+import { GRID, EDIT_SPACE } from './grid';
 import { isContainer, type Placement } from './types';
 import { designSize, validDesign } from './design-space';
 
@@ -29,7 +29,7 @@ export function contentSize(parent?: Placement) {
   return { cols: Math.max(0, size.width / GRID.cell - inset), rows: Math.max(0, size.height / GRID.cell - inset) };
 }
 export const overlaps = (a: Placement, b: Placement) => a.col < b.col + b.colSpan - EPS && a.col + a.colSpan > b.col + EPS && a.row < b.row + b.rowSpan - EPS && a.row + a.rowSpan > b.row + EPS;
-export function placementError(node: Placement, nodes: Placement[]): string | null {
+export function placementError(node: Placement, nodes: Placement[], draft = false): string | null {
   const definition = registry.get(node.type);
   if (!definition || ![node.col, node.row, node.colSpan, node.rowSpan].every(Number.isFinite)) return '组件类型或坐标无效';
   if (node.colSpan < definition.min[0] - EPS || node.rowSpan < definition.min[1] - EPS) return '组件小于允许的最小尺寸';
@@ -43,12 +43,12 @@ export function placementError(node: Placement, nodes: Placement[]): string | nu
   const parent = node.parentId ? nodes.find(other => other.id === node.parentId) : undefined;
   if (node.parentId && (!parent || !isContainer(parent))) return '父级不是可用的布局容器';
   if (parent?.layout?.mode !== undefined && parent.layout.mode !== 'free') return null;
-  const size = contentSize(parent);
+  const size = !parent && draft ? { cols: EDIT_SPACE.width / GRID.cell, rows: EDIT_SPACE.height / GRID.cell } : contentSize(parent);
   if (node.col < -EPS || node.row < -EPS || node.col + node.colSpan > size.cols + EPS || node.row + node.rowSpan > size.rows + EPS) return '组件超出了画布或父容器内容区';
-  if (nodes.some(other => other.id !== node.id && other.parentId === node.parentId && overlaps(node, other))) return '组件与同级组件重叠';
+  if (!draft && !parent?.layout?.overlap && nodes.some(other => other.id !== node.id && other.parentId === node.parentId && overlaps(node, other))) return '组件与同级组件重叠';
   return null;
 }
-export function validateTree(nodes: Placement[]): string | null {
+export function validateTree(nodes: Placement[], draft = false): string | null {
   if (nodes.length > 300) return '单个工作区最多 300 个组件';
   const ids = new Set<string>();
   for (const node of nodes) {
@@ -65,7 +65,7 @@ export function validateTree(nodes: Placement[]): string | null {
       cursor = nodes.find(other => other.id === cursor!.parentId);
       if (!cursor) return '父容器不存在';
     }
-    const error = placementError(node, nodes);
+    const error = placementError(node, nodes, draft);
     if (error) return error;
   }
   return null;

@@ -1,5 +1,7 @@
 /** 网格仅决定拖放步长，历史文档的亚网格像素位置仍精确保留。 */
 export const CANVAS = { width: 960, height: 720 } as const;
+/** 原位编辑的临时可用范围，网格步长不变；完成后缩回原显示框。 */
+export const EDIT_SPACE = { width: 3840, height: 2880 } as const;
 export const GRID = { cols: 80, rows: 60, cell: 12 } as const;
 export const LEGACY_GRID = { cols: 40, rows: 30, cell: 24 } as const;
 export const FINE_GRID = { cols: 120, rows: 90, cell: 8 } as const;

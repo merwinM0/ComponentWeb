@@ -17,11 +17,11 @@ export function combinationTiles(target: HTMLElement, editor: Editor, combinatio
     const text = document.createElement('div'); const title = document.createElement('strong'); title.textContent = item.name;
     const hint = document.createElement('small'); hint.textContent = `${Math.round(root.colSpan * GRID.cell)} × ${Math.round(root.rowSpan * GRID.cell)} px · 本地组合`; text.append(title, hint);
     const add = document.createElement('button'); add.type = 'button'; add.textContent = '＋ 添加'; add.setAttribute('aria-label', `添加组合 ${item.name}`); add.disabled = editor.preview;
-    add.addEventListener('click', () => editor.insertSnapshot(item.document, editor.node && isContainer(editor.node) ? editor.node.id : null));
+    add.addEventListener('click', () => editor.insertSnapshot(item.document, !editor.scopeRootId && editor.node && isContainer(editor.node) ? editor.node.id : null));
     info.append(text, add);
     const actions = document.createElement('div'); actions.className = 'combination-tile-actions';
-    for (const [label, run] of [['设计', () => editor.onEditSavedCombination(item.id)], ['重命名', () => dialogs.rename(item.id)], ['删除', () => dialogs.remove(item.id)]] as const) {
-      const button = document.createElement('button'); button.type = 'button'; button.textContent = label; button.setAttribute('aria-label', `${label}组合 ${item.name}`); button.disabled = editor.preview; button.addEventListener('click', run); actions.append(button);
+    for (const [label, run] of [['编辑', () => editor.onEditSavedCombination(item.id)], ['重命名', () => dialogs.rename(item.id)], ['删除', () => dialogs.remove(item.id)]] as const) {
+      const button = document.createElement('button'); button.type = 'button'; button.textContent = label; button.setAttribute('aria-label', `${label}组合 ${item.name}`); button.disabled = editor.preview || (label === '删除' && !!editor.session?.frames.some(frame => frame.templateId === item.id)); button.addEventListener('click', run); actions.append(button);
     }
     tile.append(preview, info, actions); target.append(tile);
   }

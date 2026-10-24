@@ -72,7 +72,7 @@ export function setupPanels(editor: Editor, combinations: Combinations, dialogs:
       text.append(title, hint);
       const add = document.createElement('button'); add.type = 'button'; add.textContent = '＋ 添加';
       add.setAttribute('aria-label', `添加${definition.title}`); add.disabled = editor.preview;
-      add.addEventListener('click', () => editor.add(definition.type, undefined, editor.node && isContainer(editor.node) ? editor.node.id : null));
+      add.addEventListener('click', () => editor.add(definition.type, undefined, !editor.scopeRootId && editor.node && isContainer(editor.node) ? editor.node.id : null));
       info.append(text, add); tile.append(preview, info); container.append(tile);
     }
     $('library-results').textContent = `${count} 项素材 · 拖入或点击添加`;

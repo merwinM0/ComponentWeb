@@ -1,12 +1,16 @@
 import { createNode, findSpace, GRID, parseDocument, type Document, type Placement } from '../core/model';
-import { CANVAS } from '../core/grid';
+import { CANVAS, EDIT_SPACE } from '../core/grid';
+import type { InlineEdit } from '../core/inline-edit';
+import { workingSize } from '../core/assembly';
+import type { ElementEdit } from '../core/element-edits';
 import type { StorePort } from '../core/store';
 import { bounds, childrenOf, descendants, topSelection } from '../core/tree';
 import { isContainer, type ContainerLayout } from '../core/types';
 import { alignNodes, cloneForest, distributeNodes, groupNodes, moveNodes, placeForest, reorderNodes, type Alignment } from '../core/operations';
 import type { Props } from '../components/contract';
 import { CanvasRenderer } from './canvas-renderer';
-import { growDesign, insertionSpace } from '../core/design-bounds';
+import { hitNode, logicalRect, contentOrigin, arrangeVisual } from './coordinates';
+import { growDesign } from '../core/design-bounds';
 import { $, toast } from './dom';
 export { $, toast } from './dom';
 
@@ -22,34 +26,36 @@ export class Editor {
   onEditComponent = (_id: string) => {};
   onNewComponent = (_parentId?: string | null) => {};
   onEditSavedCombination = (_id: string) => {};
+  onAssemble = () => {};
+  selectedTag: { id: string; path: number[] } | null = null;
+  onSelectTag = (_id: string, _path: number[]) => {};
+  onChangeTag = (_id: string, _edit: ElementEdit | null) => {};
+  readonly contextRenderer: CanvasRenderer;
   private lastScope: string | null = null;
   private lastContext: object | null = null;
   private colorPreviewId: string | null = null;
-  constructor(readonly store: StorePort, private getScopeRoot: () => string | null = () => null) {
+  constructor(readonly store: StorePort, readonly session?: InlineEdit) {
+    this.contextRenderer = new CanvasRenderer($('context-layer'), () => {});
     this.renderer = new CanvasRenderer(this.canvas, id => { if (!this.preview && !this.selectedIds.has(id)) this.select(id); });
     Object.assign(this.canvas.style, { width: `${CANVAS.width}px`, height: `${CANVAS.height}px` });
     this.canvas.style.setProperty('--grid-cell', `${GRID.cell}px`); this.canvas.style.setProperty('--grid-major', '48px');
-    $('grid-dimensions').textContent = `${GRID.cols} × ${GRID.rows}`; $('grid-cell-label').textContent = `${GRID.cell} px 网格`;
+    $('grid-cell-label').textContent = `${GRID.cell} px 网格`;
     this.setZoom(1);
     store.subscribe(() => this.render());
     this.canvas.addEventListener('component-action', event => toast(String((event as CustomEvent).detail || '操作已触发')));
     this.render();
   }
-  get scopeRootId() { return this.getScopeRoot(); }
+  get scopeRootId() { return this.session?.rootId ?? null; }
   get scopeRoot() { return this.store.doc.nodes.find(node => node.id === this.scopeRootId); }
-  get pageSize() { return CANVAS; }
-  hitNode(target: HTMLElement, deep = false) {
-    const id = target.closest<HTMLElement>('.node')?.dataset.id;
-    let node = this.store.doc.nodes.find(item => item.id === id);
-    if (!node) return undefined;
-    if (deep || this.selectedIds.has(node.id) || (node.parentId !== null && node.parentId !== this.scopeRootId && this.selection.some(item => item.parentId === node!.parentId))) return node;
-    while (node.parentId && node.parentId !== this.scopeRootId) node = this.store.doc.nodes.find(item => item.id === node!.parentId)!;
-    return node;
-  }
+  get pageSize() { return this.session?.pageSize ?? CANVAS; }
+  hitNode(target: HTMLElement, deep = false) { return hitNode(this, target, deep); }
   pageError(nodes: Placement[]): string | null {
     if (!this.scopeRootId) return null;
-    const roots = nodes.filter(node => !node.parentId);
-    return roots.length !== 1 || roots[0].id !== this.scopeRootId || !isContainer(roots[0]) || roots[0].col !== 0 || roots[0].row !== 0 ? '设计页根组件不能移动、删除、换层或解散；请编辑其内容或使用画布尺寸设置' : null;
+    const root = nodes.find(node => node.id === this.scopeRootId);
+    if (!root) return null;
+    if (root.parentId) return '本层编辑对象不能放入自己的子项；请使用组装操作';
+    const size = workingSize(root);
+    return root.col < 0 || root.row < 0 || root.col * GRID.cell + size.width > EDIT_SPACE.width + 1e-6 || root.row * GRID.cell + size.height > EDIT_SPACE.height + 1e-6 ? '超出原位编辑范围，请移动组件或缩小内部尺寸' : null;
   }
   get selected() { return [...this.selectedIds].at(-1) ?? null; }
   get selection() { return topSelection(this.store.doc.nodes, this.selectedIds); }
@@ -62,29 +68,32 @@ export class Editor {
   }
   setSelection(ids: Iterable<string>) {
     if (this.colorPreviewId) { const node = this.store.doc.nodes.find(node => node.id === this.colorPreviewId); if (node) this.renderer.preview(node.id, node.props); this.colorPreviewId = null; }
+    this.selectedTag = null;
     this.applyAppearance(this.store.doc.appearance);
     this.selectedIds = new Set(topSelection(this.store.doc.nodes, ids).map(node => node.id));
     this.renderer.selection(this.store.doc.nodes, this.selectedIds, this.preview);
     this.selectionStatus(); this.onSelection();
   }
-  selectAll(parentId: string | null = null) { this.setSelection(childrenOf(this.store.doc.nodes, parentId ?? this.scopeRootId).map(node => node.id)); }
+  selectAll(parentId: string | null = null) { this.setSelection(childrenOf(this.store.doc.nodes, parentId).map(node => node.id)); }
   private selectionStatus() {
     $('selection-status').textContent = this.selectedIds.size > 1 ? `已选择 ${this.selectedIds.size} 个组件 · Shift 点击增减选择` : this.node ? `${this.node.props.title || '组件'} · ${Math.round(this.logicalRect(this.node.id).colSpan * GRID.cell)} × ${Math.round(this.logicalRect(this.node.id).rowSpan * GRID.cell)} px` : '未选择组件 · 空白处拖动框选';
     document.querySelectorAll<HTMLButtonElement>('[data-selection-action]').forEach(button => { button.disabled = this.preview || !this.selectedIds.size; });
   }
-  previewColors(id: string, props: Props) { this.colorPreviewId = id; this.renderer.preview(id, props); if (id === this.scopeRootId && props.background) this.canvas.style.setProperty('--canvas-background', props.background); }
-  applyAppearance(appearance: Document['appearance']) { this.canvas.style.setProperty('--canvas-background', this.scopeRoot?.props.background ?? appearance.background); this.canvas.style.setProperty('--canvas-grid', appearance.grid); }
+  previewColors(id: string, props: Props) { this.colorPreviewId = id; this.renderer.preview(id, props);  }
+  applyAppearance(appearance: Document['appearance']) { this.canvas.style.setProperty('--canvas-background', appearance.background); this.canvas.style.setProperty('--canvas-grid', appearance.grid); }
   render() {
     const context = this.store.contextToken ?? this.store;
-    if (this.lastScope !== this.scopeRootId || this.lastContext !== context) { this.renderer.clear(); this.lastScope = this.scopeRootId; this.lastContext = context; }
+    if (this.lastScope !== this.scopeRootId || this.lastContext !== context) { this.renderer.clear(); this.selectedTag = null; this.lastScope = this.scopeRootId; this.lastContext = context; }
     const size = this.pageSize; Object.assign(this.canvas.style, { width: `${size.width}px`, height: `${size.height}px` });
-    $('grid-dimensions').textContent = `${Math.ceil(size.width / GRID.cell)} × ${Math.ceil(size.height / GRID.cell)}`;
     this.setZoom(this.zoom);
     this.colorPreviewId = null; this.applyAppearance(this.store.doc.appearance);
     this.selectedIds = new Set([...this.selectedIds].filter(id => this.store.doc.nodes.some(node => node.id === id)));
+    if (this.selectedTag && (!this.selectedIds.has(this.selectedTag.id) || !this.store.doc.nodes.some(node => node.id === this.selectedTag!.id && !isContainer(node)))) this.selectedTag = null;
+    if (this.session?.current) this.contextRenderer.render(this.session.current.background, new Set(), true);
+    else this.contextRenderer.clear();
     this.renderer.render(this.store.doc, this.selectedIds, this.preview, this.scopeRootId);
-    $('empty-state').hidden = !!this.store.doc.nodes.length;
-    $('node-count').textContent = this.scopeRootId ? `${this.store.doc.nodes.length - 1} 个内容组件` : `${this.store.doc.nodes.length} 个组件`;
+    $('empty-state').hidden = !!this.store.doc.nodes.length || !!this.scopeRootId;
+    $('node-count').textContent = this.scopeRootId ? `${this.store.doc.nodes.length} 个编辑对象` : `${this.store.doc.nodes.length} 个组件`;
     $<HTMLButtonElement>('undo').disabled = !this.store.canUndo || this.preview; $<HTMLButtonElement>('redo').disabled = !this.store.canRedo || this.preview;
     this.selectionStatus(); this.onSelection();
   }
@@ -94,7 +103,7 @@ export class Editor {
     try {
       nodes = this.prepareNodes(nodes);
       const pageError = this.pageError(nodes); if (pageError) throw new Error(pageError);
-      const doc = parseDocument(JSON.stringify({ ...this.store.doc, nodes }));
+      const doc = parseDocument(JSON.stringify({ ...this.store.doc, nodes }), !!this.scopeRootId);
       const unchanged = JSON.stringify(doc) === JSON.stringify(this.store.doc);
       if (ids) this.selectedIds = new Set(ids);
       this.store.commit(doc);
@@ -107,16 +116,24 @@ export class Editor {
   }
   add(type: string, placement?: Placement, parentId: string | null = null) {
     if (this.preview) return;
-    const target = parentId ?? this.scopeRootId;
-    const node = placement ? { ...placement, parentId: placement.parentId ?? target } : findSpace({ ...createNode(type), parentId: target }, insertionSpace(this.store.doc.nodes, target, this.scopeRootId));
+    const target = parentId;
+    const created = createNode(type);
+    const node = placement ? { ...placement, parentId: placement.parentId ?? target } : this.scopeRootId && !target ? { ...created, ...this.stagingPosition(created) } : findSpace({ ...created, parentId: target }, this.store.doc.nodes);
     if (!node) { toast('没有可用空间，可调整容器尺寸或使用自动布局'); return; }
     this.commit([...this.store.doc.nodes, node], [node.id]);
   }
+  stagingPosition(node: Pick<Placement, 'colSpan' | 'rowSpan'>) {
+    const root = this.scopeRoot, size = root ? workingSize(root) : { width: 0, height: 0 };
+    const count = this.session?.loose.length ?? 0;
+    return { col: Math.min(EDIT_SPACE.width / GRID.cell - node.colSpan, Math.round((root?.col ?? 0) + size.width / GRID.cell + 2)),
+      row: Math.min(EDIT_SPACE.height / GRID.cell - node.rowSpan, Math.round((root?.row ?? 0) + count * (node.rowSpan + 1))) };
+  }
   update(node: Placement) { return this.commit(this.store.doc.nodes.map(other => other.id === node.id ? node : other)); }
   move(dx: number, dy: number) { return this.attempt(() => moveNodes(this.store.doc.nodes, this.selectedIds, dx, dy)); }
-  align(value: Alignment) { this.attempt(() => alignNodes(this.store.doc.nodes, this.selectedIds, value)); }
-  distribute(axis: 'x' | 'y') { this.attempt(() => distributeNodes(this.store.doc.nodes, this.selectedIds, axis)); }
+  align(value: Alignment) { this.attempt(() => arrangeVisual(this, nodes => alignNodes(nodes, this.selectedIds, value))); }
+  distribute(axis: 'x' | 'y') { this.attempt(() => arrangeVisual(this, nodes => distributeNodes(nodes, this.selectedIds, axis))); }
   group(mode: ContainerLayout['mode'] = 'free') {
+    if (this.scopeRootId) { this.onAssemble(); return; }
     try { const result = groupNodes(this.store.doc.nodes, this.selectedIds, mode); this.commit(result.nodes, [result.container.id]); } catch (error) { toast((error as Error).message); }
   }
   remove() { const all = descendants(this.store.doc.nodes, this.selectedIds); this.commit(this.store.doc.nodes.filter(node => !all.has(node.id)), []); }
@@ -126,27 +143,19 @@ export class Editor {
       const roots = this.selection;
       if (roots.some(node => node.parentId !== roots[0].parentId)) throw new Error('复制时请选择同一父级的组件');
       const copies = cloneForest(this.store.doc.nodes, this.selectedIds);
-      this.commit([...this.store.doc.nodes, ...placeForest(copies.nodes, copies.roots, insertionSpace(this.store.doc.nodes, roots[0].parentId, this.scopeRootId), roots[0].parentId)], copies.roots);
+      const target = this.scopeRootId ? null : roots[0].parentId;
+      if (this.scopeRootId && copies.roots.length === 1 && roots[0].id === this.scopeRootId) { const size = workingSize(roots[0]); const copy = copies.nodes.find(node => node.id === copies.roots[0])!; copy.colSpan = size.width / GRID.cell; copy.rowSpan = size.height / GRID.cell; }
+      this.commit([...this.store.doc.nodes, ...placeForest(copies.nodes, copies.roots, this.store.doc.nodes, target, this.scopeRootId ? this.stagingPosition(bounds(copies.nodes.filter(node => copies.roots.includes(node.id)))) : undefined)], copies.roots);
     } catch (error) { toast((error as Error).message); }
   }
   insertSnapshot(snapshot: Document, parentId: string | null = null, position?: { col: number; row: number }) {
     try {
       const copies = cloneForest(snapshot.nodes, snapshot.nodes.filter(node => !node.parentId).map(node => node.id));
-      this.commit([...this.store.doc.nodes, ...placeForest(copies.nodes, copies.roots, insertionSpace(this.store.doc.nodes, parentId ?? this.scopeRootId, this.scopeRootId), parentId ?? this.scopeRootId, position)], copies.roots);
+      this.commit([...this.store.doc.nodes, ...placeForest(copies.nodes, copies.roots, this.store.doc.nodes, parentId, position ?? (this.scopeRootId && !parentId ? this.stagingPosition(bounds(copies.nodes.filter(node => copies.roots.includes(node.id)))) : undefined))], copies.roots);
     } catch (error) { toast((error as Error).message); }
   }
-  logicalRect(id: string) {
-    const rect = this.renderer.element(id)!.getBoundingClientRect(); const canvas = this.canvas.getBoundingClientRect();
-    return { col: (rect.left - canvas.left) / this.zoom / GRID.cell, row: (rect.top - canvas.top) / this.zoom / GRID.cell, colSpan: rect.width / this.zoom / GRID.cell, rowSpan: rect.height / this.zoom / GRID.cell };
-  }
-  origin(parentId: string | null) {
-    const target = this.renderer.content(parentId); const rect = target.getBoundingClientRect(); const canvas = this.canvas.getBoundingClientRect();
-    const style = getComputedStyle(target);
-    const scaleX = parentId ? rect.width / this.zoom / parseFloat(style.width) : 1;
-    const scaleY = parentId ? rect.height / this.zoom / parseFloat(style.height) : 1;
-    return { col: (rect.left - canvas.left) / this.zoom / GRID.cell - target.scrollLeft / GRID.cell * scaleX,
-      row: (rect.top - canvas.top) / this.zoom / GRID.cell - target.scrollTop / GRID.cell * scaleY, scaleX, scaleY };
-  }
+  logicalRect(id: string) { return logicalRect(this, id); }
+  origin(parentId: string | null) { return contentOrigin(this, parentId); }
   reparent(parentId: string | null) {
     const roots = this.selection; const selected = new Set(roots.map(node => node.id));
     if (parentId && descendants(this.store.doc.nodes, selected).has(parentId)) { toast('不能将组件放入自己或后代'); return; }
@@ -184,7 +193,7 @@ export class Editor {
     this.commit(reorderNodes(this.store.doc.nodes, this.selectedIds, before));
   }
   setZoom(value: number) {
-    this.zoom = value; this.renderer.zoom = value; this.canvas.style.transform = `scale(${value})`;
+    this.zoom = value; this.renderer.zoom = value; this.contextRenderer.zoom = value; this.canvas.style.transform = `scale(${value})`;
     $('canvas-shell').style.width = `${this.pageSize.width * value}px`; $('canvas-shell').style.height = `${this.pageSize.height * value}px`;
   }
   setPreview() {
