@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="240" viewBox="0 0 360 240" fill="none" role="img" aria-labelledby="panel-title panel-description">
+  <title id="panel-title">折角面板 · SVG 组件背景设计稿</title>
+  <desc id="panel-description">深色面板，左上凸起标题签、右上与下方折角、浅蓝细线。外部占位为 360×240，建议内容安全区为 x=24、y=48、宽312、高168。图中不包含文字或内容，不接管内部布局。</desc>
+  <path d="M0.5 12.5 L12.5 0.5 H131.5 L155.5 24.5 H347.5 L359.5 36.5 V227.5 L347.5 239.5 H12.5 L0.5 227.5 Z" fill="#101d29" stroke="#48657d"/>
+  <path d="M0.5 48.5 V12.5 L12.5 0.5 H60.5" stroke="#8bd5ff"/>
+  <path d="M299.5 239.5H347.5L359.5 227.5V191.5" stroke="#8bd5ff"/>
+  <path d="M24 24.5H120M288 228.5H324" stroke="#48657d"/>
+</svg>
