@@ -1,0 +1,54 @@
+# ComponentWeb
+
+一个基于 **Bun + HTML + CSS + TypeScript** 的可视化组件布局工作台。使用真实 DOM 和 Shadow DOM，无需前端框架。
+
+## 功能
+
+- 内置 138 项素材，包括常用组件、HTML 标签和布局容器。
+- 支持拖放、缩放、多选、对齐，以及自由 / Flex / Grid 布局。
+- 右键原位编辑组件，修改内部标签的文本、位置、尺寸和颜色。
+- 支持嵌套组装，并将自定义组合保存到组件库复用。
+- 提供预览、撤销 / 重做和浏览器本地自动保存。
+
+## 启动
+
+先安装 [Bun](https://bun.sh)，然后运行：
+
+```bash
+bun install
+bun run dev
+```
+
+打开 http://localhost:3000 。
+
+## 基本使用
+
+1. 从左侧组件库拖入素材，或点击「添加」。
+2. 选中组件，在右侧修改布局、内容和样式。
+3. 右键选择「编辑组件」，在当前工作区编辑内部内容；双击不会进入编辑。
+4. 空间不足时先扩大编辑框，内容不能越界，也不会自动撑大组件。
+5. 将散件「组装本层」或删除后，点击「完成本层」。
+
+布局只保存在当前浏览器，不提供后端或跨设备同步。未完成的编辑草稿不会自动保存，刷新前请先完成编辑。
+
+## 检查与构建
+
+```bash
+bun test
+bun run typecheck
+bun run build
+```
+
+构建产物位于 `dist/`。浏览器回归检查：
+
+```bash
+bunx playwright install chromium
+bun run test:browser
+```
+
+## 更多说明
+
+- [工作台操作说明](./WORKBENCH.md)
+- [组件编辑与组装](./COMPONENT_DESIGN.md)
+- [素材目录](./CATALOGUE.md)
+- [后续路线](./ROADMAP.md)
