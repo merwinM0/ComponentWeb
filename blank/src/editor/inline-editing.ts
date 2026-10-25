@@ -1,3 +1,4 @@
+import { skinDefinition } from '../components/container/skins';
 import { resolveContentHeights } from './content-height';
 import { InlineEdit, type EditView } from '../core/inline-edit';
 import { GRID } from '../core/grid';
@@ -88,7 +89,7 @@ export function setupInlineEditing(editor: Editor, session: InlineEdit, combinat
     for (const [id, value] of [['inline-title', root?.props.title ?? session.current!.name], ['inline-width', size.width], ['inline-height', size.height], ['inline-display-width', (root?.colSpan ?? session.current!.source.colSpan) * GRID.cell], ['inline-display-height', (root?.rowSpan ?? session.current!.source.rowSpan) * GRID.cell]] as const) {
       const input = $<HTMLInputElement>(id); if (document.activeElement !== input) input.value = String(value); input.disabled = !root;
     }
-    if (root) { const min = registry.get(root.type)!.min; $<HTMLInputElement>('inline-width').min = String(min[0] * GRID.cell); $<HTMLInputElement>('inline-height').min = String(min[1] * GRID.cell); $<HTMLInputElement>('inline-display-width').min = String(min[0] * GRID.cell); $<HTMLInputElement>('inline-display-height').min = String(min[1] * GRID.cell); }
+    if (root) { const min = registry.get(root.type)!.min, skin = skinDefinition(root.skin); $<HTMLInputElement>('inline-width').min = String(Math.max(min[0] * GRID.cell, skin?.min[0] ?? 0)); $<HTMLInputElement>('inline-height').min = String(Math.max(min[1] * GRID.cell, skin?.min[1] ?? 0)); $<HTMLInputElement>('inline-display-width').min = String(min[0] * GRID.cell); $<HTMLInputElement>('inline-display-height').min = String(min[1] * GRID.cell); }
     document.title = `正在编辑 ${root?.props.title ?? session.current!.name} · ComponentWeb`;
   }
   render(); return { render, finish };

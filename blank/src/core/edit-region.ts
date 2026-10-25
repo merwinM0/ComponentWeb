@@ -1,3 +1,4 @@
+import { containerGeometry } from './container-geometry';
 import { registry } from '../components/registry';
 import { GRID, EDIT_SPACE } from './grid';
 import { designSize } from './design-space';
@@ -8,8 +9,11 @@ export interface EditRegion { col: number; row: number; cols: number; rows: numb
 export const workingSize = (node: Placement) => { const size = isContainer(node) ? designSize(node) : nativeSurface(node); return { width: size.width, height: size.height }; };
 export function regionOf(root: Placement, content = false): EditRegion {
   const size = workingSize(root);
-  const inset = content && isContainer(root) ? ((root.layout?.padding ?? 0) + (root.props.borderStyle === 'none' ? 0 : root.props.borderWidth ?? 1)) / GRID.cell : 0;
-  return { col: root.col + inset, row: root.row + inset, cols: size.width / GRID.cell - inset * 2, rows: size.height / GRID.cell - inset * 2 };
+  if (content && isContainer(root)) {
+    const area = containerGeometry(root).content;
+    return { col: root.col + area.x / GRID.cell, row: root.row + area.y / GRID.cell, cols: area.width / GRID.cell, rows: area.height / GRID.cell };
+  }
+  return { col: root.col, row: root.row, cols: size.width / GRID.cell, rows: size.height / GRID.cell };
 }
 export const fitsRegion = (node: Pick<Placement, 'col' | 'row' | 'colSpan' | 'rowSpan'>, area: EditRegion) => node.col >= area.col - 1e-6 && node.row >= area.row - 1e-6 && node.col + node.colSpan <= area.col + area.cols + 1e-6 && node.row + node.rowSpan <= area.row + area.rows + 1e-6;
 export function editRegionError(nodes: Placement[], rootId: string, fallback?: EditRegion): string | null {

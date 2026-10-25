@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>SVG 容器背景 · 设计对照</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;background:#f6f5f1;color:#302f2b;font:14px/1.6 system-ui,sans-serif}
+    main{max-width:1200px;margin:0 auto;padding:48px 24px}h1{font-size:28px;font-weight:600;letter-spacing:-.5px;margin:0 0 8px}
+    .intro{margin:0 0 36px;color:#625f57;max-width:720px}.samples{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}
+    article{min-width:0}.sample{width:360px;height:240px;max-width:100%;position:relative}
+    .sample img{display:block;width:100%;height:100%;position:absolute;inset:0}.content{position:absolute;inset:49px 49px 31px 31px}
+    .ticket .content{inset:33px 65px 33px 41px}.bubble .content{inset:33px 33px 57px}
+    .paper{color:#493626}.ticket{color:#5e2b27}.bubble{color:#214c3c}
+    .eyebrow{font-size:10px;font-weight:600;letter-spacing:1.5px}.paper .eyebrow{color:#99502c}.ticket .eyebrow{color:#aa3825}.bubble .eyebrow{color:#2a6a50}
+    h2{font-size:23px;font-weight:600;line-height:1.4;letter-spacing:-.5px;margin:12px 0 12px}.content p{margin:0;font-size:13px;line-height:1.8}
+    h3{font-size:14px;font-weight:600;margin:20px 0 4px}.caption{font-size:12px;color:#625f57;margin:0 0 8px}a{font-size:12px;color:#3d5e70;text-underline-offset:3px}a:focus-visible{outline:2px solid #3d5e70;outline-offset:4px}
+    .note{margin-top:36px;padding-top:20px;border-top:1px solid #d9d5ca;max-width:760px;color:#625f57;font-size:12px}
+    @media(max-width:1080px){.samples{grid-template-columns:1fr}.sample{max-width:none}main{max-width:600px}.intro{margin-bottom:24px}}
+    @media(max-width:400px){main{padding:32px 16px}.sample{width:288px;height:192px}.content{inset:39px 39px 25px 25px}.ticket .content{inset:26px 52px 26px 33px}.bubble .content{inset:26px 26px 46px}h2{font-size:19px;margin:8px 0}.content p{font-size:11px}}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>SVG 容器背景</h1>
+    <p class="intro">不沿用测试工作台的暗色视觉。用纸张、票券和对话的形状表达内容；SVG 负责背景，文字和布局仍然由 HTML 承载。</p>
+    <div class="samples">
+      <article>
+        <div class="sample paper"><img src="svg-paper.svg" alt=""><div class="content"><div class="eyebrow">01 / NOTE</div><h2>留住一个好想法</h2><p>把灵感、待办和零散笔记<br>收进同一张纸。</p></div></div>
+        <h3>折页纸张</h3><p class="caption">奶油纸面 / 杏色折页 / 非对称安全区</p><a href="svg-paper.svg">查看 SVG 原稿</a>
+      </article>
+      <article>
+        <div class="sample ticket"><img src="svg-ticket.svg" alt=""><div class="content"><div class="eyebrow">02 / ADMIT ONE</div><h2>周末创作工作坊</h2><p>04.18 · 周六 14:00<br>一张入场券，一段新体验。</p></div></div>
+        <h3>镂空票券</h3><p class="caption">珊瑚票面 / 双侧透明缺口 / 独立票根</p><a href="svg-ticket.svg">查看 SVG 原稿</a>
+      </article>
+      <article>
+        <div class="sample bubble"><img src="svg-bubble.svg" alt=""><div class="content"><div class="eyebrow">03 / CONVERSATION</div><h2>有问题，慢慢说</h2><p>留下一句想法，<br>让每一次回应都有空间。</p></div></div>
+        <h3>对话气泡</h3><p class="caption">鼠尾草绿 / 圆润轮廓 / 底部尾角</p><a href="svg-bubble.svg">查看 SVG 原稿</a>
+      </article>
+    </div>
+    <p class="note">此页是设计对照，不是新应用页面。三款背景已接入工作台的「布局容器 → 容器背景」。内容区与外部占位分开计算；当前碰撞仍按矩形检查，不开放任意 SVG 导入。</p>
+  </main>
+</body>
+</html>

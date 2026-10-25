@@ -52,6 +52,12 @@
 
 仅支持静态 HTML + CSS；不支持 JavaScript、事件属性、外部资源、跳转、表单、SVG 和 MathML。使用无脚本 sandbox iframe 与内容安全策略隔离，不影响工作台样式。导入内容内部标签不参与原位标签编辑。
 
+## SVG 容器背景
+
+「布局容器」新增三款可选背景，不增加素材类型数量：折页纸张（奶油纸面）、镂空票券（珊瑚票面）、对话气泡（鼠尾草绿）。选中容器，在右侧「容器背景」使用缩略预览切换；示例配色独立于工作台主题，后续可自定义。
+
+背景只负责绘制轮廓；正文仍是可嵌套的真实 DOM。外框与内容安全区分开，原有自由 / Flex / Grid、伸缩与跨格仍可用。详见 [操作说明](./WORKBENCH.md#svg-容器背景)和[设计对照页](./designs/svg-backgrounds.html)。初版深色折角稿已弃用；现有常用组件整体样式仍属测试稿，后续全面重设计见 [路线](./ROADMAP.md#明确保留的后续待办重做全部常用组件样式)。
+
 ## 颜色编辑
 
 选中组件后，右侧可以分别修改：
@@ -84,7 +90,9 @@
 
 - `components/native/`：按文本、结构、表单、媒体、数据分类定义原生素材，复用 `factory.ts` 的隔离渲染与清理逻辑。
 - `components/common/`：常见组合组件，交互监听器通过 AbortController 统一销毁。
-- `components/container/`：通过 slot 承载真实子树的布局容器。
+- `components/container/`：通过 slot 承载真实子树的布局容器；`skins.ts` 定义可信 SVG 背景、配色和几何预留。
+- `core/container-geometry.ts`：共用容器安全区和实际内容区；渲染、校验、拖放与组装使用同一模型。
+- `editor/container-background-panel.ts` / `container-surface.ts`：款式选择与 SVG、内容区域渲染。
 - `components/colors.ts`：共享颜色默认值、预设、格式校验和对比度算法。
 - `editor/color-controls.ts`：通用拾色与 HEX 控件。
 - `components/shape.ts`：圆角、边框默认值与格式校验。

@@ -25,7 +25,10 @@ export function setupGestures(editor: Editor, combinations: Combinations) {
       let element = hit.closest<HTMLElement>('.node');
       while (element) {
         const node = editor.store.doc.nodes.find(node => node.id === element!.dataset.id);
-        if (node && isContainer(node) && !excluded.has(node.id)) return node.id;
+        if (node && isContainer(node) && !excluded.has(node.id)) {
+          const rect = editor.renderer.content(node.id).getBoundingClientRect();
+          if (!node.skin || (event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom)) return node.id;
+        }
         element = element.parentElement?.closest<HTMLElement>('.node') ?? null;
       }
     }

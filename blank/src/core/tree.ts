@@ -1,7 +1,8 @@
+import { containerGeometry, containerGeometryError } from './container-geometry';
 import { registry } from '../components/registry';
 import { GRID, EDIT_SPACE, type CanvasGrid } from './grid';
 import { isContainer, type Placement } from './types';
-import { designSize, validDesign } from './design-space';
+import { validDesign } from './design-space';
 
 export const EPS = 1e-6;
 export const childrenOf = (nodes: Placement[], parentId: string | null) => nodes.filter(node => node.parentId === parentId);
@@ -23,10 +24,8 @@ export function topSelection(nodes: Placement[], ids: Iterable<string>): Placeme
 }
 export function contentSize(parent?: Placement, grid: CanvasGrid = GRID) {
   if (!parent) return { cols: grid.cols, rows: grid.rows };
-  const border = parent.props.borderStyle === 'none' ? 0 : (parent.props.borderWidth ?? 1);
-  const inset = ((parent.layout?.padding ?? 12) + border) * 2 / GRID.cell;
-  const size = designSize(parent);
-  return { cols: Math.max(0, size.width / GRID.cell - inset), rows: Math.max(0, size.height / GRID.cell - inset) };
+  const { content } = containerGeometry(parent);
+  return { cols: Math.max(0, content.width / GRID.cell), rows: Math.max(0, content.height / GRID.cell) };
 }
 export const overlaps = (a: Placement, b: Placement) => a.col < b.col + b.colSpan - EPS && a.col + a.colSpan > b.col + EPS && a.row < b.row + b.rowSpan - EPS && a.row + a.rowSpan > b.row + EPS;
 export function placementError(node: Placement, nodes: Placement[], draft = false, grid: CanvasGrid = GRID): string | null {
@@ -34,11 +33,8 @@ export function placementError(node: Placement, nodes: Placement[], draft = fals
   if (!definition || ![node.col, node.row, node.colSpan, node.rowSpan].every(Number.isFinite)) return '组件类型或坐标无效';
   if (node.colSpan < definition.min[0] - EPS || node.rowSpan < definition.min[1] - EPS) return '组件小于允许的最小尺寸';
   if (isContainer(node)) {
-    const border = node.props.borderStyle === 'none' ? 0 : (node.props.borderWidth ?? 1);
-    const inset = ((node.layout?.padding ?? 12) + border) * 2;
     if (node.design !== undefined && !validDesign(node.design)) return '组件内部设计尺寸无效';
-    const size = designSize(node);
-    if (size.width < inset + 1 || size.height < inset + 1) return '容器尺寸不足以容纳边框和内边距';
+    const geometryError = containerGeometryError(node); if (geometryError) return geometryError;
   }
   const parent = node.parentId ? nodes.find(other => other.id === node.parentId) : undefined;
   if (node.parentId && (!parent || !isContainer(parent))) return '父级不是可用的布局容器';

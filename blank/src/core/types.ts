@@ -1,3 +1,4 @@
+import type { ContainerSkinId } from '../components/container/skins';
 import type { ItemConstraints } from './item-constraints';
 import type { Props } from '../components/contract';
 import type { CanvasGrid } from './grid';
@@ -25,6 +26,8 @@ export interface Placement {
   rowSpan: number;
   props: Props;
   layout?: ContainerLayout;
+  /** Trusted container background; absent means the legacy rectangle. */
+  skin?: ContainerSkinId;
   constraints?: ItemConstraints;
   /** 容器内部坐标系（px），与 colSpan / rowSpan 表示的显示尺寸分离。 */
   design?: DesignSize;

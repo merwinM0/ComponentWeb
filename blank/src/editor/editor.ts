@@ -1,3 +1,4 @@
+import { containerGeometry } from '../core/container-geometry';
 import { resolveContentHeights } from './content-height';
 import type { Typography } from '../components/typography';
 import { createNode, findSpace, GRID, parseDocument, type Document, type Placement } from '../core/model';
@@ -71,7 +72,7 @@ export class Editor {
   hitNode(target: HTMLElement, deep = false) { return hitNode(this, target, deep); }
   pageError(nodes: Placement[]): string | null {
     if (!this.scopeRootId) return null;
-    return editRegionError(nodes, this.scopeRootId, this.session?.current?.bounds);
+    return editRegionError(nodes, this.scopeRootId, this.session?.current?.contentBounds);
   }
   get selected() { return [...this.selectedIds].at(-1) ?? null; }
   get selection() { return topSelection(this.store.doc.nodes, this.selectedIds); }
@@ -156,7 +157,7 @@ export class Editor {
   }
   stagingPosition(node: Pick<Placement, 'colSpan' | 'rowSpan'>, parentId: string | null = null) {
     const root = this.scopeRoot;
-    const parent = this.store.doc.nodes.find(item => item.id === parentId), area = parent ? { ...regionOf(parent, true), col: 0, row: 0 } : root ? regionOf(root, true) : this.session?.current?.bounds;
+    const parent = this.store.doc.nodes.find(item => item.id === parentId), area = parent ? { ...regionOf(parent, true), col: 0, row: 0 } : root ? regionOf(root, true) : this.session?.current?.contentBounds;
     if (!area) return undefined;
     if (node.colSpan > area.cols + 1e-6 || node.rowSpan > area.rows + 1e-6) return undefined;
     if (parent?.layout?.mode !== 'free' && parent) return { col: 0, row: 0 };
@@ -223,10 +224,11 @@ export class Editor {
     let nodes = this.store.doc.nodes;
     if (node.layout!.mode !== 'free' && layout.mode === 'free') {
       const origin = this.origin(node.id);
-      const delta = (layout.padding - node.layout!.padding) / GRID.cell;
+      const previousContent = containerGeometry(node).content, nextContent = containerGeometry({ ...node, layout }).content;
+      const deltaX = (nextContent.x - previousContent.x) / GRID.cell, deltaY = (nextContent.y - previousContent.y) / GRID.cell;
       const positions = new Map(childrenOf(nodes, node.id).map(child => [child.id, this.logicalRect(child.id)]));
       nodes = nodes.map(child => positions.has(child.id) ? { ...child, colSpan: positions.get(child.id)!.colSpan / origin.scaleX, rowSpan: positions.get(child.id)!.rowSpan / origin.scaleY,
-        col: (positions.get(child.id)!.col - origin.col) / origin.scaleX - delta, row: (positions.get(child.id)!.row - origin.row) / origin.scaleY - delta } : child);
+        col: (positions.get(child.id)!.col - origin.col) / origin.scaleX - deltaX, row: (positions.get(child.id)!.row - origin.row) / origin.scaleY - deltaY } : child);
     }
     if (!this.commit(nodes.map(other => other.id === node.id ? { ...other, layout } : other))) this.onSelection();
   }

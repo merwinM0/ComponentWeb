@@ -1,3 +1,5 @@
+import { containerBackgroundPanel } from './container-background-panel';
+import { skinDefinition } from '../components/container/skins';
 import { components } from '../components/registry';
 import { descendants } from '../core/tree';
 import { isContainer, type ContainerLayout } from '../core/types';
@@ -15,10 +17,12 @@ export function layoutPanel(editor: Editor) {
   for (const other of editor.store.doc.nodes) if (isContainer(other) && !excluded.has(other.id)) parent.append(new Option(`${other.props.title || '容器'} · ${other.id.slice(0, 5)}`, other.id));
   parent.value = node.parentId ?? ''; parent.addEventListener('change', () => { editor.reparent(parent.value || null); editor.onSelection(); }); label.append(parent); container.append(label);
   if (!isContainer(node)) return container;
+  container.append(containerBackgroundPanel(editor));
+  const skin = skinDefinition(node.skin);
   const sizeForm = document.createElement('form'); sizeForm.className = 'layout-form';
   sizeForm.innerHTML = `<div class="section-title">内部设计尺寸 <span>DESIGN SPACE</span></div><div class="field-grid">
-    <label class="field">基准宽（px）<input id="layout-design-width" name="width" type="number" min="24" max="${EDIT_SPACE.width}" step="any" required></label>
-    <label class="field">基准高（px）<input id="layout-design-height" name="height" type="number" min="24" max="${EDIT_SPACE.height}" step="any" required></label></div>
+    <label class="field">基准宽（px）<input id="layout-design-width" name="width" type="number" min="${skin?.min[0] ?? 24}" max="${EDIT_SPACE.width}" step="any" required></label>
+    <label class="field">基准高（px）<input id="layout-design-height" name="height" type="number" min="${skin?.min[1] ?? 24}" max="${EDIT_SPACE.height}" step="any" required></label></div>
     <p class="inspector-help">子项坐标、字号、间距以此为基准。外部显示宽高按比例缩放整体，不改写内部布局。</p>`;
   const size = designSize(node);
   for (const key of ['width', 'height'] as const) { const input = sizeForm.elements.namedItem(key) as HTMLInputElement; input.value = String(size[key]); input.disabled = editor.preview; }

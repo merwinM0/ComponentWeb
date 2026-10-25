@@ -9,6 +9,7 @@
 .component-host.tag-editable { pointer-events:auto; }
 .editing-component .node-label { pointer-events:auto;cursor:move; }
 .node.scope-root { outline:1px dashed #8bd5ff;outline-offset:3px;background:var(--editing-background); }
+.node.scope-root.svg-backed { background:transparent; }
 .context-layer .node { cursor:default; }
 .inline-editor { flex-shrink:0;padding:12px 24px;border-bottom:1px solid #294358;background:#10202e; }
 .inline-navigation { display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0; }

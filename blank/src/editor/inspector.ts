@@ -1,3 +1,4 @@
+import { skinDefinition } from '../components/container/skins';
 import { typographyPanel } from './typography-panel';
 import { constraintsPanel } from './constraints-panel';
 import { registry } from '../components/registry';
@@ -37,6 +38,7 @@ export function setupInspector(editor: Editor) {
       container.innerHTML = '<div class="no-selection"><span aria-hidden="true">⌖</span><h2>每一格，都有可能</h2><p>选择组件调整内容与配色<br>也可以先为画布换个颜色</p></div>';
     } else {
       const definition = registry.get(node.type)!;
+      const skin = node.id === editor.scopeRootId ? skinDefinition(node.skin) : undefined;
       const parent = editor.store.doc.nodes.find(other => other.id === node.parentId);
       const automatic = !!parent?.layout && parent.layout.mode !== 'free';
       const area = editor.scopeRootId && !parent ? { cols: EDIT_SPACE.width / GRID.cell, rows: EDIT_SPACE.height / GRID.cell } : contentSize(parent, editor.store.doc.grid);
@@ -48,8 +50,8 @@ export function setupInspector(editor: Editor) {
           <div class="field-grid">
             <label class="field">位置 X（px）<input id="prop-col" name="col" type="number" min="0" max="${area.cols * GRID.cell - working.width}" step="any" required></label>
             <label class="field">位置 Y（px）<input id="prop-row" name="row" type="number" min="0" max="${area.rows * GRID.cell - working.height}" step="any" required></label>
-            <label class="field">${node.id === editor.scopeRootId ? '编辑框宽 W' : isContainer(node) ? '显示宽 W' : '宽度 W'}（px）<input id="prop-colSpan" name="colSpan" type="number" min="${definition.min[0] * GRID.cell}" max="${node.id === editor.scopeRootId ? EDIT_SPACE.width : (automatic ? editor.store.doc.grid.cols : area.cols - node.col) * GRID.cell}" step="any" required></label>
-            <label class="field">${node.id === editor.scopeRootId ? '编辑框高 H' : isContainer(node) ? '显示高 H' : '高度 H'}（px）<input id="prop-rowSpan" name="rowSpan" type="number" min="${definition.min[1] * GRID.cell}" max="${node.id === editor.scopeRootId ? EDIT_SPACE.height : (automatic ? editor.store.doc.grid.rows : area.rows - node.row) * GRID.cell}" step="any" required></label>
+            <label class="field">${node.id === editor.scopeRootId ? '编辑框宽 W' : isContainer(node) ? '显示宽 W' : '宽度 W'}（px）<input id="prop-colSpan" name="colSpan" type="number" min="${Math.max(definition.min[0] * GRID.cell, skin?.min[0] ?? 0)}" max="${node.id === editor.scopeRootId ? EDIT_SPACE.width : (automatic ? editor.store.doc.grid.cols : area.cols - node.col) * GRID.cell}" step="any" required></label>
+            <label class="field">${node.id === editor.scopeRootId ? '编辑框高 H' : isContainer(node) ? '显示高 H' : '高度 H'}（px）<input id="prop-rowSpan" name="rowSpan" type="number" min="${Math.max(definition.min[1] * GRID.cell, skin?.min[1] ?? 0)}" max="${node.id === editor.scopeRootId ? EDIT_SPACE.height : (automatic ? editor.store.doc.grid.rows : area.rows - node.row) * GRID.cell}" step="any" required></label>
           </div>
           <p class="inspector-help">拖动按 ${GRID.cell}px 吸附；输入框单位为像素。${automatic ? `<br>位置由父容器自动排版；输入为请求尺寸，伸缩、跨格和内容高度决定实际尺寸。实际 ${Math.round(editor.logicalRect(node.id).colSpan * GRID.cell)} × ${Math.round(editor.logicalRect(node.id).rowSpan * GRID.cell)} px。` : ''}${isContainer(node) && node.id !== editor.scopeRootId ? '<br>显示宽高仅缩放整体；内部设计尺寸可在下方设置。' : parent ? '<br>子项尺寸与坐标使用父容器的内部设计网格。' : ''}${node.id === editor.scopeRootId ? '<br>编辑框宽高立即生效；添加和移动必须在框内，不会自动扩展。完成后的显示尺寸在上方单独设置。' : ''}<br>最小 ${definition.min[0] * GRID.cell} × ${definition.min[1] * GRID.cell} px</p>
           <div class="section-title">组件内容 <span>CONTENT</span></div>

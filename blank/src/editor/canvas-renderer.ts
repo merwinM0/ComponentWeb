@@ -1,3 +1,4 @@
+import { renderContainerSurface } from './container-surface';
 import { applyTypography } from '../components/typography';
 import { itemStyles } from './item-styles';
 import { registry } from '../components/registry';
@@ -5,7 +6,7 @@ import { shapeOf } from '../components/shape';
 import { colorsOf } from '../components/colors';
 import type { Props } from '../components/contract';
 import { GRID } from '../core/grid';
-import { designSize, displayScale } from '../core/design-space';
+import { displayScale } from '../core/design-space';
 import { childrenOf } from '../core/tree';
 import { isContainer, type Document, type Placement } from '../core/types';
 import { workingSize } from '../core/assembly';
@@ -65,11 +66,12 @@ export class CanvasRenderer {
         }
         const current = [...target.children].filter(child => child.classList.contains('node'))[index];
         if (current !== item.element) target.insertBefore(item.element, current ?? null);
-        Object.assign(item.element.style, itemStyles(node, parent, definition.min), { borderRadius: `${shapeOf(node.props).radius}px` });
+        Object.assign(item.element.style, itemStyles(node, parent, definition.min), { borderRadius: `${node.skin ? 0 : shapeOf(node.props).radius}px` });
         if (node.id === scopeRootId) { const size = workingSize(node); item.element.style.width = `${size.width}px`; item.element.style.height = `${size.height}px`; }
         item.element.tabIndex = preview ? -1 : 0;
         item.element.dataset.container = String(isContainer(node));
         item.element.classList.toggle('scope-root', node.id === scopeRootId);
+        item.element.classList.toggle('svg-backed', !!node.skin);
         item.element.classList.toggle('native-backed', !isContainer(node) && !!node.surface);
         // 编辑框背景独立于原生内容基准；兼容旧偏移数据，不改变标签布局和坐标。
         item.element.style.setProperty('--editing-background', colorsOf(node.props).background);
@@ -80,19 +82,7 @@ export class CanvasRenderer {
         item.node = node; restoreTags(item.host); item.instance.update(node.props); applyTypography(item.host, node.props.typography); applyTags(item.host, node.elements);
         if (scopeRootId && !isContainer(node)) item.host.shadowRoot!.querySelectorAll<HTMLElement>('button,input,select,textarea,a,[tabindex]').forEach(control => { control.tabIndex = -1; if (control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement) control.readOnly = true; });
         if (isContainer(node)) {
-          const layout = node.layout!;
-          const size = designSize(node);
-          Object.assign(item.host.shadowRoot!.querySelector<HTMLElement>('.container-surface')!.style, { width: `${size.width}px`, height: `${size.height}px`, transformOrigin: '0 0' });
-          item.host.style.setProperty('--layout-padding', `${layout.padding}px`);
-          item.host.style.setProperty('--layout-gap', `${layout.gap}px`);
-          const body = item.host.shadowRoot!.querySelector<HTMLElement>('.container-children')!;
-          const minTrack = Math.max(0, ...childrenOf(doc.nodes, node.id).map(child => {
-            const span = Math.min(child.constraints?.columnSpan ?? 1, layout.columns);
-            return Math.max(0, (registry.get(child.type)!.min[0] * GRID.cell - layout.gap * (span - 1)) / span);
-          }));
-          Object.assign(body.style, { display: layout.mode === 'free' ? 'block' : layout.mode, flexDirection: layout.direction,
-            flexWrap: layout.wrap ? 'wrap' : 'nowrap', alignItems: layout.align, justifyContent: layout.justify,
-            gridTemplateColumns: `repeat(${layout.columns}, minmax(${minTrack}px,1fr))`, gridAutoRows: 'minmax(min-content,1fr)' });
+          const body = renderContainerSurface(item.host, node, doc.nodes);
           body.dataset.empty = String(!preview && !childrenOf(doc.nodes, node.id).length);
           visit(node.id, item.host);
         }
@@ -109,7 +99,7 @@ export class CanvasRenderer {
       const item = this.mounted.get(node.id)!;
       const style = getComputedStyle(item.host); const { x: sx, y: sy } = displayScale(node, parseFloat(style.width), parseFloat(style.height));
       item.host.shadowRoot!.querySelector<HTMLElement>('.container-surface')!.style.transform = `scale(${sx},${sy})`;
-      const radius = shapeOf(node.props).radius; item.element.style.borderRadius = `${radius * sx}px / ${radius * sy}px`;
+      const radius = node.skin ? 0 : shapeOf(node.props).radius; item.element.style.borderRadius = `${radius * sx}px / ${radius * sy}px`;
     }
     for (const node of doc.nodes) if (!isContainer(node)) scaleNative(this.mounted.get(node.id)!.host, node, node.id === scopeRootId);
     this.selection(doc.nodes, selected, preview);
@@ -118,6 +108,8 @@ export class CanvasRenderer {
     for (const node of nodes) {
       const item = this.mounted.get(node.id); if (!item) continue;
       const active = selected.has(node.id) && !preview;
+      const safeGuide = item.host.shadowRoot?.querySelector<HTMLElement>('.container-safe-area');
+      if (safeGuide) safeGuide.hidden = !node.skin || preview || (!active && !item.element.classList.contains('scope-root'));
       item.element.classList.toggle('selected', active);
       item.element.setAttribute('aria-label', `${registry.get(node.type)!.title}${active ? '，已选中' : ''}${preview ? '，预览' : '，Shift 点击多选，方向键移动'}`);
       const label = item.element.querySelector<HTMLElement>(':scope > .node-label')!;

@@ -1,3 +1,4 @@
+import { skinDefinition, type ContainerSkinId } from '../components/container/skins';
 import { parseTypography } from '../components/typography';
 import { parseConstraints } from './item-constraints';
 import { registry } from '../components/registry';
@@ -68,6 +69,10 @@ export function parseDocument(raw: string, draft = false): Document {
     const node: Placement = { id: source.id, type: source.type, parentId: structured ? source.parentId ?? null : null,
       col: source.col * scale, row: source.row * scale, colSpan: source.colSpan * scale, rowSpan: source.rowSpan * scale,
       props: { title: source.props.title, description: source.props.description, ...colors, ...shapeOf(source.props), source: source.props.source ?? '' } };
+    if (source.skin !== undefined) {
+      if (!isContainer(node) || typeof source.skin !== 'string' || !skinDefinition(source.skin)) throw new Error('容器背景类型无效');
+      node.skin = source.skin as ContainerSkinId;
+    }
     if (source.props.typography !== undefined) node.props.typography = parseTypography(source.props.typography);
     if (source.constraints !== undefined) node.constraints = parseConstraints(source.constraints);
     if (node.constraints?.heightMode === 'content' && (isContainer(node) || node.type.startsWith('imported.'))) throw new Error('内容自适应高度仅适用于原生非容器组件');

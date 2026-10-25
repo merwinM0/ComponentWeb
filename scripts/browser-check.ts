@@ -1,3 +1,4 @@
+import { checkContainerBackgrounds } from './container-backgrounds-check';
 import { checkLayoutEnhancements } from './layout-enhancements-check';
 import { chromium, type Page } from 'playwright';
 import AxeBuilder from '@axe-core/playwright';
@@ -59,6 +60,7 @@ try {
   await checkTheme(page);
   await checkDesktopCanvas(page);
   await checkLayoutEnhancements(page);
+  await checkContainerBackgrounds(page);
   await audit(page, '初始工作台');
   await page.getByRole('button', { name: 'HTML 标签', exact: true }).click();
   assert(await page.locator('.component-tile').count() === components.filter(item => item.type.startsWith('html.')).length, 'HTML 分类计数');
