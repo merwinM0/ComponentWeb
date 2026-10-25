@@ -37,6 +37,21 @@
 - 图片、音频、视频可在属性面板填写 HTTP(S) 地址，超链接支持 HTTP(S) / mailto / tel；拒绝 javascript、file 等协议。
 - 外部媒体是否加载成功取决于服务器、网络及浏览器策略；视频字幕等生产内容要求仍需自行补充。
 
+## 导入组件
+
+工作区组件库点击「＋ 导入 HTML + CSS」，填写名称并粘贴以下格式：
+
+```html
+<style>
+.card { padding: 24px; background: #eff6ff; color: #152535; }
+</style>
+<article class="card"><h2>我的卡片</h2><p>组件内容</p></article>
+```
+
+导入后自动进入「导入组件」分区，可搜索、拖入或点击添加。默认 288×192px，可在工作区调整大小；每次添加为独立副本。最多 50 项、每项 50,000 字符，存于当前浏览器 `componentweb.imports.v1`，不跨设备同步。
+
+仅支持静态 HTML + CSS；不支持 JavaScript、事件属性、外部资源、跳转、表单、SVG 和 MathML。使用无脚本 sandbox iframe 与内容安全策略隔离，不影响工作台样式。导入内容内部标签不参与原位标签编辑。
+
 ## 颜色编辑
 
 选中组件后，右侧可以分别修改：

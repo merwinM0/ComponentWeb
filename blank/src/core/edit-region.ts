@@ -28,7 +28,8 @@ export function resizeEditingNode(node: Placement, width: number, height: number
   // 兼容旧版自动外扩且含偏移的标签：扩大边界不能再次拉长其自动宽度，保留原布局基准。
   const offset = node.elements?.some(edit => edit.style?.x || edit.style?.y);
   const expanded = old.x !== 0 || old.y !== 0 || old.width > old.baseWidth + 1e-6 || old.height > old.baseHeight + 1e-6;
-  return { ...node, surface: offset && expanded ? { ...old, width, height } : { baseWidth: width, baseHeight: height, x: 0, y: 0, width, height } };
+  const growing = width >= old.width && height >= old.height;
+  return { ...node, surface: offset && expanded && growing ? { ...old, width, height } : { baseWidth: width, baseHeight: height, x: 0, y: 0, width, height } };
 }
 /** 移动编辑框时，尚未组装的内部散件跟随整体移动，不改变相对位置。 */
 export function moveEditingRegion(nodes: Placement[], before: Placement[], rootId: string) {

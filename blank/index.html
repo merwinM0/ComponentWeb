@@ -61,10 +61,10 @@
   </main>
   <main id="editor-page" class="app-layout" hidden inert>
     <aside class="library panel" aria-label="组件库">
-      <details id="component-library" open class="panel-details"><summary><span class="library-title">组件库 <span id="library-count" class="badge"></span></span></summary>
+      <details id="component-library" open class="panel-details"><summary><span class="library-title">组件库 <span id="library-count" class="badge"></span></span><button id="import-component" type="button" class="library-import">导入</button></summary>
         <div class="panel-intro">小组件，搭出大想法。</div>
         <label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="搜索组件、HTML 标签…" aria-label="搜索组件"></label>
-        <div class="category-tabs" aria-label="素材类型"><button class="active" data-kind="全部" aria-pressed="true">全部</button><button data-kind="常用组件" aria-pressed="false">常用组件</button><button data-kind="HTML 标签" aria-pressed="false">HTML 标签</button><button data-kind="我的组合" aria-pressed="false">我的组合</button></div>
+        <div class="category-tabs" aria-label="素材类型"><button class="active" data-kind="全部" aria-pressed="true">全部</button><button data-kind="常用组件" aria-pressed="false">常用组件</button><button data-kind="HTML 标签" aria-pressed="false">HTML 标签</button><button data-kind="我的组合" aria-pressed="false">我的组合</button><button data-kind="导入组件" aria-pressed="false">导入组件</button></div>
         <button id="create-combination" class="new-combination" hidden>＋ 新建组合容器</button>
         <label class="category-select">分类<select id="category-filter" aria-label="组件分类"></select></label>
         <p id="library-results" class="library-results" role="status"></p>
@@ -97,7 +97,7 @@
       </div>
       <div class="workspace-bottom"><span>▦　<span id="grid-cell-label">12 px 网格</span><span id="canvas-size-label" class="canvas-size-label"></span> <span class="separator">·</span> Shift 多选 <span class="separator">·</span> 右键操作</span><span><kbd>↑↓←→</kbd> 移动 <kbd>Del</kbd> 删除</span></div>
     </section>
-    <aside class="inspector panel" aria-label="属性面板"><details open class="panel-details"><summary>属性面板 <span class="tiny-label">INSPECTOR</span></summary><div id="inspector-content"></div></details><div class="inspector-note">布局由网格定义<br>细节由你决定 <span>↗</span></div></aside>
+    <aside class="inspector panel" aria-label="属性面板"><button id="toggle-inspector" type="button" aria-label="收起属性面板" aria-expanded="true" aria-controls="inspector-body">›</button><div id="inspector-body"><details open class="panel-details"><summary>属性面板 <span class="tiny-label">INSPECTOR</span></summary><div id="inspector-content"></div></details><div class="inspector-note">布局由网格定义<br>细节由你决定 <span>↗</span></div></div></aside>
   </main>
   <footer id="editor-status" class="statusbar" hidden><span><span class="status-dot"></span> <span id="mode-label">编辑模式</span> <span class="separator">/</span> <span id="node-count">4 个组件</span></span><span id="selection-status">未选择组件</span><span>BUN + HTML + CSS + TS</span></footer>
   <div id="toast" role="status" aria-live="polite" hidden></div>

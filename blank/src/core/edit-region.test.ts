@@ -25,6 +25,15 @@ test('越界添加、拖动和组装被拒绝，不能反向撑大编辑框', ()
   expect(workingSize(assembled.find(node => node.id === root.id)!)).toEqual({ width: 480, height: 240 });
   expect(validateTree(assembled, true)).toBeNull();
 });
+test('旧偏移组件缩小后重新建立布局基准，不保留已删除内容留下的空白高度', () => {
+  const node = createNode('content.card');
+  node.surface = { baseWidth: 288, baseHeight: 1200, x: 0, y: 0, width: 288, height: 1440 };
+  node.elements = [{ path: [0, 0], tag: 'h2', style: { x: 12 } }, { path: [0, 1], tag: 'p', hidden: true }];
+  const resized = resizeEditingNode(node, 288, 360);
+  expect(resized.surface).toEqual({ baseWidth: 288, baseHeight: 360, x: 0, y: 0, width: 288, height: 360 });
+  expect(resized.elements).toEqual(node.elements);
+  expect(node.surface.baseHeight).toBe(1200);
+});
 test('布局容器的边框与内边距也是放置边界', () => {
   const root = { ...createNode('layout.container'), id: 'root', col: 4, row: 4 };
   const area = regionOf(root, true), piece = createNode('basic.button');

@@ -76,6 +76,7 @@ export class CanvasRenderer {
         item.element.tabIndex = preview ? -1 : 0;
         item.element.dataset.container = String(isContainer(node));
         item.element.classList.toggle('scope-root', node.id === scopeRootId);
+        item.element.classList.toggle('native-backed', !isContainer(node) && !!node.surface);
         // 编辑框背景独立于原生内容基准；兼容旧偏移数据，不改变标签布局和坐标。
         item.element.style.setProperty('--editing-background', colorsOf(node.props).background);
         item.host.style.removeProperty('--container-background');

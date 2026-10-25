@@ -1,3 +1,4 @@
+import { setupImportDialog } from './import-dialog';
 import { components } from '../components/registry';
 import { $, Editor } from './editor';
 import { setupInspector } from './inspector';
@@ -20,7 +21,18 @@ const previews: Record<string, string> = {
 };
 
 export function setupPanels(editor: Editor, combinations: Combinations, dialogs: { rename(id: string): void; remove(id: string): void }) {
+  setupImportDialog(editor);
+  $('import-component').addEventListener('click', event => event.preventDefault());
+  $('toggle-inspector').addEventListener('click', () => {
+    const button = $('toggle-inspector');
+    const collapsed = document.querySelector('.app-layout')!.classList.toggle('inspector-collapsed');
+    $('inspector-body').hidden = collapsed;
+    button.setAttribute('aria-expanded', String(!collapsed));
+    button.setAttribute('aria-label', collapsed ? '展开属性面板' : '收起属性面板');
+    button.textContent = collapsed ? '‹' : '›';
+  });
   let kind = '全部';
+  const matchesKind = (definition: typeof components[number]) => kind === '全部' || (kind === '导入组件' ? definition.category === '导入组件' : definition.category !== '导入组件' && (kind === 'HTML 标签') === definition.type.startsWith('html.'));
   const categories = $<HTMLSelectElement>('category-filter');
   const renderInspector = setupInspector(editor);
   $('library-count').textContent = String(components.length);
@@ -28,10 +40,11 @@ export function setupPanels(editor: Editor, combinations: Combinations, dialogs:
     categories.replaceChildren(new Option('所有分类', '全部'));
     categories.disabled = kind === '我的组合';
     if (kind === '我的组合') return;
-    const filtered = components.filter(definition => kind === '全部' || (kind === 'HTML 标签') === definition.type.startsWith('html.'));
+    const filtered = components.filter(matchesKind);
     for (const category of new Set(filtered.map(definition => definition.category))) categories.append(new Option(category, category));
   }
   function renderLibrary() {
+    ($('import-component') as HTMLButtonElement).disabled = editor.preview;
     const query = $<HTMLInputElement>('search').value.trim().toLowerCase();
     const container = $('component-list');
     container.replaceChildren();
@@ -40,7 +53,7 @@ export function setupPanels(editor: Editor, combinations: Combinations, dialogs:
     if (kind === '我的组合') { const count = combinationTiles(container, editor, combinations, query, dialogs); $('library-results').textContent = `${count} 个本地组合 · 拖入或点击添加`; return; }
     let count = 0;
     for (const definition of components) {
-      if (kind !== '全部' && (kind === 'HTML 标签') !== definition.type.startsWith('html.')) continue;
+      if (!matchesKind(definition)) continue;
       if (categories.value !== '全部' && categories.value !== definition.category) continue;
       if (!`${definition.title}${definition.description}${definition.type}${definition.tags?.join(' ') ?? ''}`.toLowerCase().includes(query)) continue;
       count++;
@@ -90,7 +103,7 @@ export function setupPanels(editor: Editor, combinations: Combinations, dialogs:
         item.classList.toggle('active', item === button);
         item.setAttribute('aria-pressed', String(item === button));
       });
-      updateCategories(); renderLibrary();
+      categories.value = '全部'; updateCategories(); renderLibrary();
     });
   });
   combinations.subscribe(renderLibrary);

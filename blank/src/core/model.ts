@@ -59,7 +59,7 @@ export function parseDocument(raw: string, draft = false): Document {
     if (!definition || typeof source.id !== 'string' || !source.id || source.id.length > 100 || !source.props ||
       !['title', 'description', 'accent'].every(key => typeof source.props[key] === 'string' && source.props[key].length <= 2000) ||
       !isValidShape(source.props) || COLOR_FIELDS.some(([key]) => source.props[key] !== undefined && !isColor(source.props[key])) ||
-      (source.props.source !== undefined && (typeof source.props.source !== 'string' || source.props.source.length > 2000))) throw new Error('存档中的组件数据无效');
+      (source.props.source !== undefined && (typeof source.props.source !== 'string' || source.props.source.length > (source.type.startsWith('imported.') ? 50000 : 2000)))) throw new Error('存档中的组件数据无效');
     const colors = colorsOf({ ...definition.defaults, ...source.props });
     if (source.type === 'basic.button' && source.props.background === undefined) colors.background = source.props.accent;
     if (source.type === 'basic.button' && source.props.border === undefined) colors.border = source.props.accent;

@@ -78,3 +78,16 @@
   .palette-presets { max-width: 400px; }
   .inspector .color-controls { max-width: 500px; }
 }
+
+.category-tabs { flex-wrap:wrap; }
+.library-import { padding:4px 8px; font-size:11px; font-weight:400; color:var(--accent); background:transparent; }
+.library .search:focus-within { border-color:var(--accent); }
+#search:focus { outline:none; box-shadow:none; }
+#toggle-inspector { width:36px; height:36px; padding:0; border-radius:0; flex-shrink:0; align-self:flex-start; font-size:22px; }
+#inspector-body { min-width:0; }
+.app-layout.inspector-collapsed { grid-template-columns:244px minmax(0,1fr) 36px; }
+.inspector-collapsed .inspector { overflow:hidden; }
+.node.native-backed { background:var(--editing-background); }
+@media (max-width:1150px) and (min-width:801px) {
+  .app-layout.inspector-collapsed { grid-template-columns:210px minmax(0,1fr) 36px; }
+}
