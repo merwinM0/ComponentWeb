@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { alignNodes, cloneForest, distributeNodes, groupNodes, moveNodes, placeForest, reorderNodes } from './operations';
-import { createNode, initialDocument, parseDocument, validLayout, DEFAULT_LAYOUT } from './model';
+import { createNode, initialDocument, parseDocument, validLayout, DEFAULT_LAYOUT, GRID } from './model';
 import { descendants, topSelection, validateTree } from './tree';
 
 const buttons = () => [0, 22, 50].map((col, index) => ({ ...createNode('basic.button'), col, row: index * 2 }));
@@ -16,7 +16,7 @@ describe('多选与批量排版', () => {
     expect(result[1].col - result[0].col - result[0].colSpan).toBe(result[2].col - result[1].col - result[1].colSpan);
   });
   test('整组越界、碰撞和空间不足被拒绝，而不部分修改', () => {
-    const nodes = buttons(); expect(validateTree(moveNodes(nodes, nodes.map(node => node.id), 30, 0))).not.toBeNull();
+    const nodes = buttons(); expect(validateTree(moveNodes(nodes, nodes.map(node => node.id), GRID.cols, 0))).not.toBeNull();
     expect(() => distributeNodes(nodes, nodes.slice(0, 2).map(node => node.id), 'x')).toThrow();
     const overlapping = nodes.map(node => ({ ...node, col: 0 })); expect(() => distributeNodes(overlapping, overlapping.map(node => node.id), 'x')).toThrow();
   });

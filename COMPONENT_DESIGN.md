@@ -57,6 +57,6 @@
 
 自动保存只更新主工作区所属的当前布局，不保存未组装草稿。组件编辑期间可以查看导航栏的最近布局菜单，但切换布局与返回首页均禁用，必须完成当前编辑后再离开。草稿暂存在当前标签页内存中；刷新 / 关闭会警告，确认离开会丢失未完成内容。
 
-文档仍为 schemaVersion 3，兼容旧网格和布局。保存白名单标签修改、原生尺寸基准与容器配置，不保存任意 HTML / JavaScript。
+文档为 schemaVersion 4，兼容 v1 / v2 / v3 旧网格和布局。主画布扩大为 3840×2880，不放大既有组件，不改变其内部设计尺寸、原生尺寸基准或显式编辑框边界。保存白名单标签修改、原生尺寸基准与容器配置，不保存任意 HTML / JavaScript。
 
 实现：`core/edit-region.ts`、`core/inline-edit.ts`、`core/assembly.ts`、`editor/inline-editing.ts`、`editor/element-editing.ts`。

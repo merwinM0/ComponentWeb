@@ -3,6 +3,11 @@
 .topbar .theme-toggle { display:grid;place-items:center;flex-shrink:0;width:36px;height:36px;padding:0;border-radius:2px;background:transparent;font-size:20px;line-height:1;color:var(--muted); }
 .topbar .theme-toggle:hover { color:var(--accent);background:var(--raised); }
 .topbar .theme-toggle:focus-visible { outline-width:1px;outline-offset:2px; }
+/* 工具区仍透明，仅搜索框有稳定底色，指针光照不会穿透文字和边界。 */
+:root[data-theme='dark'] .home-list-toolbar .search { --search-surface:#101c28;--search-edge:#7393ad;--search-ink:#bfd1e2;background:var(--search-surface);border-color:var(--search-edge);border-radius:0; }
+:root[data-theme='dark'] .home-list-toolbar .search:focus-within { border-color:var(--accent); }
+:root[data-theme='dark'] .home-list-toolbar .search > span,:root[data-theme='dark'] #layout-search::placeholder { color:var(--search-ink);opacity:1; }
+:root[data-theme='dark'] #layout-search { color:var(--text); }
 :root[data-theme='light'] { color-scheme:light;--bg:#ffffff;--surface:#f6f9fb;--raised:#eaf0f5;--border:#c5d1dc;--text:#172b3b;--muted:#526575;--accent:#075e89;--danger:#aa3434;--grid:rgba(0,0,0,.08);--home-grid-strength:8%;--home-grid-focus-strength:22%; }
 :root[data-theme='light'] button:hover:not(:disabled) { background:var(--raised);border-color:#8298ab; }
 :root[data-theme='light'] .primary { background:var(--accent);border-color:var(--accent);color:#ffffff; }

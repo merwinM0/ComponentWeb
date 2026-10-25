@@ -14,6 +14,7 @@ import { checkAssemblyRendering } from './assembly-render-check';
 import { checkLayoutLibrary } from './layout-library-check';
 import { checkHomeAppearance } from './home-appearance-check';
 import { checkTheme } from './theme-check';
+import { checkDesktopCanvas } from './desktop-canvas-check';
 import { openLatestLayout } from './layout-test-helpers';
 
 const port = 3107;
@@ -55,6 +56,7 @@ try {
   await checkLayoutLibrary(page);
   await checkHomeAppearance(page);
   await checkTheme(page);
+  await checkDesktopCanvas(page);
   await audit(page, '初始工作台');
   await page.getByRole('button', { name: 'HTML 标签', exact: true }).click();
   assert(await page.locator('.component-tile').count() === components.filter(item => item.type.startsWith('html.')).length, 'HTML 分类计数');

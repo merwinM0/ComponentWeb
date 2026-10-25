@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { captureCombination, Combinations, COMBINATIONS_KEY } from './combinations';
 import { initialDocument, createNode } from './model';
 import { cloneForest } from './operations';
+import { CLASSIC_GRID } from './grid';
 
 function memory() {
   const data = new Map<string, string>(); return { data, getItem: (key: string) => data.get(key) ?? null, setItem: (key: string, value: string) => { data.set(key, value); } };
@@ -16,6 +17,13 @@ describe('我的组合', () => {
     expect(a.nodes.every(node => !b.nodes.some(other => other.id === node.id))).toBe(true);
     a.nodes[0].props.title = '单独改动'; expect(b.nodes[0].props.title).not.toBe('单独改动');
     saved.remove(saved.items[0].id); expect(new Combinations(storage).items).toEqual([]);
+  });
+  test('旧 v3 组合随文档升级，保留组合身份、内部节点和设计尺寸，不在读取时覆盖原存储', () => {
+    const storage = memory(), original = initialDocument(), document = captureCombination(original, original.nodes.map(node => node.id));
+    const item = { id: 'old-combination', name: '保留的组合', createdAt: '2025-01-01T00:00:00.000Z', document: { ...document, schemaVersion: 3, grid: CLASSIC_GRID } };
+    const raw = JSON.stringify([item]); storage.setItem(COMBINATIONS_KEY, raw);
+    const saved = new Combinations(storage);
+    expect(saved.warning).toBe(''); expect(saved.items[0]).toEqual({ ...item, document }); expect(storage.getItem(COMBINATIONS_KEY)).toBe(raw);
   });
   test('存储失败不伪报成功，也不修改内存', () => {
     const saved = new Combinations({ getItem: () => null, setItem: () => { throw new Error('quota'); } });

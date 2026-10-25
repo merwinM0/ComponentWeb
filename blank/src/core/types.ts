@@ -30,8 +30,9 @@ export interface Placement {
   surface?: NativeSurface;
 }
 export const DEFAULT_APPEARANCE = { background: '#0c1520', grid: '#82c4ed' };
+export const DOCUMENT_VERSION = 4 as const;
 export interface Document {
-  schemaVersion: 3;
+  schemaVersion: typeof DOCUMENT_VERSION;
   grid: typeof GRID;
   appearance: typeof DEFAULT_APPEARANCE;
   nodes: Placement[];

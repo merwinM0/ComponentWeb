@@ -1,8 +1,8 @@
 import { registry } from '../components/registry';
 import { colorsOf, COLOR_FIELDS, isColor } from '../components/colors';
 import { isValidShape, shapeOf } from '../components/shape';
-import { GRID, LEGACY_GRID, FINE_GRID, matchesGrid } from './grid';
-import { DEFAULT_APPEARANCE, DEFAULT_LAYOUT, isContainer, type ContainerLayout, type Document, type Placement } from './types';
+import { GRID, LEGACY_GRID, FINE_GRID, CLASSIC_GRID, matchesGrid } from './grid';
+import { DOCUMENT_VERSION, DEFAULT_APPEARANCE, DEFAULT_LAYOUT, isContainer, type ContainerLayout, type Document, type Placement } from './types';
 import { contentSize, placementError, validateTree } from './tree';
 import { validDesign } from './design-space';
 import { parseElementEdits, parseSurface } from './element-edits';
@@ -45,14 +45,15 @@ export function parseDocument(raw: string, draft = false): Document {
   const doc = JSON.parse(raw);
   const v1 = doc?.schemaVersion === 1 && matchesGrid(doc.grid, LEGACY_GRID);
   const v2 = doc?.schemaVersion === 2 && matchesGrid(doc.grid, FINE_GRID);
-  const current = doc?.schemaVersion === 3 && matchesGrid(doc.grid, GRID);
-  if ((!v1 && !v2 && !current) || !Array.isArray(doc.nodes) || doc.nodes.length > 300) throw new Error('存档格式不兼容');
+  const v3 = doc?.schemaVersion === 3 && matchesGrid(doc.grid, CLASSIC_GRID);
+  const current = doc?.schemaVersion === DOCUMENT_VERSION && matchesGrid(doc.grid, GRID), structured = v3 || current;
+  if ((!v1 && !v2 && !v3 && !current) || !Array.isArray(doc.nodes) || doc.nodes.length > 300) throw new Error('存档格式不兼容');
   const scale = (v1 ? LEGACY_GRID.cell : v2 ? FINE_GRID.cell : GRID.cell) / GRID.cell;
   const appearance = { ...DEFAULT_APPEARANCE, ...doc.appearance };
   if ((doc.appearance !== undefined && (!doc.appearance || typeof doc.appearance !== 'object' || Array.isArray(doc.appearance))) || !isColor(appearance.background) || !isColor(appearance.grid)) throw new Error('画布颜色无效');
   const nodes: Placement[] = [];
   for (const source of doc.nodes) {
-    if (!source || ![source.col, source.row, source.colSpan, source.rowSpan].every(value => Number.isFinite(value) && Math.abs(value) < 10000 && (current || Number.isInteger(value)))) throw new Error('存档中的网格坐标无效');
+    if (!source || ![source.col, source.row, source.colSpan, source.rowSpan].every(value => Number.isFinite(value) && Math.abs(value) < 10000 && (structured || Number.isInteger(value)))) throw new Error('存档中的网格坐标无效');
     const definition = registry.get(source.type);
     if (!definition || typeof source.id !== 'string' || !source.id || source.id.length > 100 || !source.props ||
       !['title', 'description', 'accent'].every(key => typeof source.props[key] === 'string' && source.props[key].length <= 2000) ||
@@ -61,7 +62,7 @@ export function parseDocument(raw: string, draft = false): Document {
     const colors = colorsOf({ ...definition.defaults, ...source.props });
     if (source.type === 'basic.button' && source.props.background === undefined) colors.background = source.props.accent;
     if (source.type === 'basic.button' && source.props.border === undefined) colors.border = source.props.accent;
-    const node: Placement = { id: source.id, type: source.type, parentId: current ? source.parentId ?? null : null,
+    const node: Placement = { id: source.id, type: source.type, parentId: structured ? source.parentId ?? null : null,
       col: source.col * scale, row: source.row * scale, colSpan: source.colSpan * scale, rowSpan: source.rowSpan * scale,
       props: { title: source.props.title, description: source.props.description, ...colors, ...shapeOf(source.props), source: source.props.source ?? '' } };
     if (node.parentId !== null && (typeof node.parentId !== 'string' || !node.parentId)) throw new Error('父容器 ID 无效');
@@ -80,14 +81,16 @@ export function parseDocument(raw: string, draft = false): Document {
     }
     nodes.push(node);
   }
+  // 扩大新画布不能让原本越界的旧存档变成合法；临时编辑草稿仍按 EDIT_SPACE 校验。
+  if (!current && !draft && nodes.some(node => !node.parentId && (node.col + node.colSpan > CLASSIC_GRID.cols + 1e-6 || node.row + node.rowSpan > CLASSIC_GRID.rows + 1e-6))) throw new Error('旧存档中的组件超出了原画布范围');
   const error = validateTree(nodes, draft);
   if (error) throw new Error(error);
-  return { schemaVersion: 3, grid: { ...GRID }, appearance: { background: appearance.background, grid: appearance.grid }, nodes };
+  return { schemaVersion: DOCUMENT_VERSION, grid: { ...GRID }, appearance: { background: appearance.background, grid: appearance.grid }, nodes };
 }
 export function initialDocument(): Document {
   const card = { ...createNode('content.card'), col: 72 / GRID.cell, row: 72 / GRID.cell };
   const metric = { ...createNode('data.metric'), col: 384 / GRID.cell, row: 72 / GRID.cell };
   const button = { ...createNode('basic.button'), col: 384 / GRID.cell, row: 216 / GRID.cell };
   const input = { ...createNode('basic.input'), col: 72 / GRID.cell, row: 288 / GRID.cell };
-  return { schemaVersion: 3, grid: { ...GRID }, appearance: { ...DEFAULT_APPEARANCE }, nodes: [card, metric, button, input] };
+  return { schemaVersion: DOCUMENT_VERSION, grid: { ...GRID }, appearance: { ...DEFAULT_APPEARANCE }, nodes: [card, metric, button, input] };
 }

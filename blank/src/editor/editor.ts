@@ -43,7 +43,7 @@ export class Editor {
     this.renderer = new CanvasRenderer(this.canvas, id => { if (!this.preview && !this.selectedIds.has(id)) this.select(id); });
     Object.assign(this.canvas.style, { width: `${CANVAS.width}px`, height: `${CANVAS.height}px` });
     this.canvas.style.setProperty('--grid-cell', `${GRID.cell}px`); this.canvas.style.setProperty('--grid-major', '48px');
-    $('grid-cell-label').textContent = `${GRID.cell} px 网格`;
+    $('grid-cell-label').textContent = `${GRID.cell} px 网格`; $('canvas-size-label').textContent = `${CANVAS.width} × ${CANVAS.height} px`;
     this.setZoom(1);
     let appearanceContext = store.contextToken ?? store, documentAppearance = JSON.stringify(store.doc.appearance);
     store.subscribe(() => {

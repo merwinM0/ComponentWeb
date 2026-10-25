@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { parseElementEdits, parseSurface } from './element-edits';
-import { createNode, initialDocument, parseDocument } from './model';
+import { createNode, initialDocument, parseDocument, GRID } from './model';
 import { Store } from './store';
 import { cloneForest } from './operations';
 
@@ -32,10 +32,11 @@ describe('原生标签修改与自动缩放数据', () => {
     clone.nodes[0].elements![0].text = '副本'; expect(store.doc.nodes[0].elements![0].text).toBe('改文案');
     expect(parseDocument(JSON.stringify(store.doc))).toEqual(store.doc);
   });
-  test('普通工作区拒绝散件越界或重叠，临时编辑草稿允许，在完成时必须正常校验', () => {
+  test('新区域可用，主画布仍拒绝重叠，临时草稿也不能超出最终编辑空间', () => {
     const root = createNode('basic.button'), loose = { ...createNode('html.p'), col: 0, row: 0 };
     const doc = { ...initialDocument(), nodes: [root, loose] };
     expect(() => parseDocument(JSON.stringify(doc))).toThrow('重叠'); expect(parseDocument(JSON.stringify(doc), true).nodes).toHaveLength(2);
-    loose.col = 100; expect(() => parseDocument(JSON.stringify(doc))).toThrow('超出'); expect(parseDocument(JSON.stringify(doc), true).nodes).toHaveLength(2);
+    loose.col = 100; expect(parseDocument(JSON.stringify(doc)).nodes).toHaveLength(2); expect(parseDocument(JSON.stringify(doc), true).nodes).toHaveLength(2);
+    loose.col = GRID.cols; expect(() => parseDocument(JSON.stringify(doc))).toThrow('超出'); expect(() => parseDocument(JSON.stringify(doc), true)).toThrow('超出');
   });
 });

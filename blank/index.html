@@ -21,7 +21,7 @@
     <span class="hero-corner hero-corner-start"></span><span class="hero-corner hero-corner-end"></span>
   </div>
   <header class="topbar">
-    <a id="home-link" class="brand" href="/" aria-label="ComponentWeb 首页"><span class="brand-icon" aria-hidden="true">▦</span><strong>Component<span>Web</span></strong><span class="version">原生版 / 14</span></a>
+    <a id="home-link" class="brand" href="/" aria-label="ComponentWeb 首页"><span class="brand-icon" aria-hidden="true">▦</span><strong>Component<span>Web</span></strong><span class="version">原生版 / 15</span></a>
     <div id="layout-navigation" class="project" hidden>
       <button id="layout-switcher" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="recent-layout-menu"><span class="project-dot" aria-hidden="true"></span><span id="project-name">默认布局</span><span aria-hidden="true">▾</span></button>
       <div id="recent-layout-menu" class="layout-menu" role="menu" aria-label="最近修改的布局" hidden>
@@ -71,10 +71,10 @@
         <div id="component-list" class="component-list" tabindex="0" role="region" aria-label="可滚动的组件列表"></div>
         <div class="library-note"><span aria-hidden="true">⊞</span><div><strong>拖入，即刻开始</strong><p>按网格自由组合，每一处都刚刚好。也可以点击添加。</p></div></div>
       </details>
-      <div class="library-footer"><span class="status-dot"></span> 本地运行，无需登录 <span>v0.14</span></div>
+      <div class="library-footer"><span class="status-dot"></span> 本地运行，无需登录 <span>v0.15</span></div>
     </aside>
     <section class="workspace" aria-label="布局工作区">
-      <div class="workspace-toolbar"><div class="workspace-title"><span class="status-dot"></span><h1 id="workspace-heading" tabindex="-1">工作区</h1><span class="label-tag">自由构建 / 网格约束</span></div><div class="history"><button id="undo" aria-label="撤销" title="撤销 Ctrl / Cmd + Z">↶</button><button id="redo" aria-label="重做" title="重做 Ctrl / Cmd + Shift + Z">↷</button><span class="divider"></span><label class="zoom-label">缩放 <select id="zoom" aria-label="画布缩放"><option value="0.5">50%</option><option value="0.75">75%</option><option value="1" selected>100%</option><option value="1.25">125%</option></select></label></div></div>
+      <div class="workspace-toolbar"><div class="workspace-title"><span class="status-dot"></span><h1 id="workspace-heading" tabindex="-1">工作区</h1><span class="label-tag">自由构建 / 网格约束</span></div><div class="history"><button id="undo" aria-label="撤销" title="撤销 Ctrl / Cmd + Z">↶</button><button id="redo" aria-label="重做" title="重做 Ctrl / Cmd + Shift + Z">↷</button><span class="divider"></span><label class="zoom-label">缩放 <select id="zoom" aria-label="画布缩放"><option value="0.125">12.5%</option><option value="0.25">25%</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1" selected>100%</option><option value="1.25">125%</option></select></label></div></div>
       <div class="commandbar" aria-label="布局操作">
         <button id="select-all">全选</button><button id="new-container">⊞ 添加容器</button>
         <button id="group-selection" data-selection-action>组合</button>
@@ -88,14 +88,14 @@
           <label>编辑框宽（px）<input id="inline-width" name="width" type="number" min="24" max="3840" step="any" required></label>
           <label>编辑框高（px）<input id="inline-height" name="height" type="number" min="24" max="2880" step="any" required></label>
           <button id="assemble-layer" type="button">组装本层</button><button id="finish-edit" type="button" class="primary">完成本层</button>
-          <details class="inline-output"><summary>完成后的显示尺寸</summary><div><label>显示宽（px）<input id="inline-display-width" name="colSpan" type="number" min="24" max="960" step="any" required></label><label>显示高（px）<input id="inline-display-height" name="rowSpan" type="number" min="24" max="720" step="any" required></label></div></details>
+          <details class="inline-output"><summary>完成后的显示尺寸</summary><div><label>显示宽（px）<input id="inline-display-width" name="colSpan" type="number" min="24" max="3840" step="any" required></label><label>显示高（px）<input id="inline-display-height" name="rowSpan" type="number" min="24" max="2880" step="any" required></label></div></details>
         </form>
         <p class="inline-note">先拖动右下角或输入宽高调整编辑框，再在框内修改、添加和移动。越界会拒绝，不会自动撑大。组件和嵌套组件统一右键「编辑组件」进入，双击不切层；散件须组装或删除才能完成。</p>
       </section>
       <div id="viewport" class="viewport" tabindex="0" aria-label="画布。空白处拖动框选，Shift 点击多选，方向键移动所选组件，右键或 Shift F10 打开功能菜单。">
         <div id="canvas-shell" class="canvas-shell"><div id="canvas" class="canvas"><div id="context-layer" class="context-layer" aria-hidden="true" inert></div><div id="empty-state" class="empty-state" hidden><span>＋</span><h2>从第一块组件开始</h2><p>从左侧拖入组件，或点击「添加」</p></div><div id="ghost" class="placement-ghost" hidden><span></span></div></div></div>
       </div>
-      <div class="workspace-bottom"><span>▦　<span id="grid-cell-label">12 px 网格</span> <span class="separator">·</span> Shift 多选 <span class="separator">·</span> 右键操作</span><span><kbd>↑↓←→</kbd> 移动 <kbd>Del</kbd> 删除</span></div>
+      <div class="workspace-bottom"><span>▦　<span id="grid-cell-label">12 px 网格</span><span id="canvas-size-label" class="canvas-size-label"></span> <span class="separator">·</span> Shift 多选 <span class="separator">·</span> 右键操作</span><span><kbd>↑↓←→</kbd> 移动 <kbd>Del</kbd> 删除</span></div>
     </section>
     <aside class="inspector panel" aria-label="属性面板"><details open class="panel-details"><summary>属性面板 <span class="tiny-label">INSPECTOR</span></summary><div id="inspector-content"></div></details><div class="inspector-note">布局由网格定义<br>细节由你决定 <span>↗</span></div></aside>
   </main>

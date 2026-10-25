@@ -6,7 +6,7 @@ import { groupNodes, cloneForest } from './operations';
 import { InlineEdit } from './inline-edit';
 import { Store } from './store';
 import { StoreRouter } from './store-router';
-import { FINE_GRID, LEGACY_GRID } from './grid';
+import { FINE_GRID, LEGACY_GRID, CLASSIC_GRID } from './grid';
 
 const view = { selection: [], zoom: 1, left: 0, top: 0 };
 function fixture() {
@@ -27,7 +27,7 @@ describe('组合内部设计空间与外部显示尺寸', () => {
   test('旧 v3 容器补齐原像素基准，不改变显示范围和任何子项坐标', () => {
     const doc = fixture(); delete doc.nodes[0].design;
     doc.nodes[0].colSpan = 50; doc.nodes[0].rowSpan = 30;
-    const result = parseDocument(JSON.stringify(doc));
+    const result = parseDocument(JSON.stringify({ ...doc, schemaVersion: 3, grid: CLASSIC_GRID }));
     expect(result.nodes[0].design).toEqual({ width: 600, height: 360 });
     expect(result.nodes[1]).toEqual(doc.nodes[1]); expect(displayScale(result.nodes[0])).toEqual({ x: 1, y: 1 });
   });
