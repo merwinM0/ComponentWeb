@@ -14,8 +14,13 @@
   <script type="module" src="./src/main.ts"></script>
 </head>
 <body class="home-view">
+  <div id="home-backdrop" class="home-backdrop" data-motion="paused" aria-hidden="true" inert>
+    <div class="hero-grid"></div><div class="hero-spotlight"></div><div class="hero-grid-focus"></div>
+    <span class="hero-cell"></span><span id="hero-pulse" class="hero-pulse"></span>
+    <span class="hero-corner hero-corner-start"></span><span class="hero-corner hero-corner-end"></span>
+  </div>
   <header class="topbar">
-    <a id="home-link" class="brand" href="/" aria-label="ComponentWeb 首页"><span class="brand-icon" aria-hidden="true">▦</span><strong>Component<span>Web</span></strong><span class="version">原生版 / 12</span></a>
+    <a id="home-link" class="brand" href="/" aria-label="ComponentWeb 首页"><span class="brand-icon" aria-hidden="true">▦</span><strong>Component<span>Web</span></strong><span class="version">原生版 / 13</span></a>
     <span id="home-location" class="home-location">本地布局库</span>
     <div id="layout-navigation" class="project" hidden>
       <button id="layout-switcher" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="recent-layout-menu"><span class="project-dot" aria-hidden="true"></span><span id="project-name">默认布局</span><span aria-hidden="true">▾</span></button>
@@ -30,14 +35,11 @@
   <main id="layout-home" class="layout-home" aria-labelledby="home-heading">
     <section id="home-hero" class="home-hero" aria-labelledby="home-heading" data-motion="paused">
       <div id="home-hero-art" class="hero-art" aria-hidden="true">
-        <div class="hero-grid"></div><div class="hero-spotlight"></div><div class="hero-grid-focus"></div>
         <div class="hero-piece hero-piece-card"><div class="hero-mini-header"><span>界面片段</span><span>···</span></div><div class="hero-mini-content"><span>&lt;section&gt;</span><i></i><i></i><span class="hero-mini-pill">开始探索 ↗</span></div></div>
         <div class="hero-piece hero-piece-tag"><span>&lt;button /&gt;</span><span>↗</span></div>
         <div class="hero-piece hero-piece-layout"><div class="hero-mini-header"><span>布局结构</span><span>⊞</span></div><div class="hero-mini-grid"><i></i><i></i><i></i></div><span class="hero-mini-caption">自由 / Flex / Grid</span></div>
-        <span class="hero-cell"></span><span id="hero-pulse" class="hero-pulse"></span><div class="hero-edge-light"></div>
-        <span class="hero-corner hero-corner-start"></span><span class="hero-corner hero-corner-end"></span>
       </div>
-      <span id="hero-pointer-readout" class="hero-pointer-readout" aria-hidden="true">移动鼠标，点亮网格</span>
+      <span id="hero-pointer-readout" class="hero-pointer-readout" aria-hidden="true">移动鼠标，点亮整屏网格</span>
       <div class="hero-copy">
         <p class="hero-eyebrow"><span aria-hidden="true">▦</span> 从一块组件，到完整界面</p>
         <h1 id="home-heading" tabindex="-1">把想法，<span class="hero-highlight">拼成界面。</span></h1>
@@ -45,7 +47,7 @@
         <div class="hero-actions"><button id="hero-new-layout" type="button" class="primary" data-create-layout>＋ 新建布局</button><button id="continue-layout" type="button">继续最近布局 <span aria-hidden="true">↗</span></button></div>
         <div class="hero-latest"><span class="hero-latest-caption">最近修改：<span id="hero-latest-name"></span></span><button id="jump-to-layouts" type="button" aria-label="查看全部布局并聚焦搜索">全部布局 <span aria-hidden="true">↓</span></button></div>
       </div>
-      <button id="toggle-home-interaction" type="button" class="home-interaction-toggle" aria-label="首页交互效果" aria-pressed="false" aria-controls="home-hero-art">开启交互效果</button>
+      <button id="toggle-home-interaction" type="button" class="home-interaction-toggle" aria-label="首页交互效果" aria-pressed="false" aria-controls="home-backdrop home-hero-art">开启交互效果</button>
     </section>
     <p id="layout-home-warning" class="home-warning" role="alert" hidden></p>
     <div class="home-library-controls">
@@ -69,7 +71,7 @@
         <div id="component-list" class="component-list" tabindex="0" role="region" aria-label="可滚动的组件列表"></div>
         <div class="library-note"><span aria-hidden="true">⊞</span><div><strong>拖入，即刻开始</strong><p>按网格自由组合，每一处都刚刚好。也可以点击添加。</p></div></div>
       </details>
-      <div class="library-footer"><span class="status-dot"></span> 本地运行，无需登录 <span>v0.12</span></div>
+      <div class="library-footer"><span class="status-dot"></span> 本地运行，无需登录 <span>v0.13</span></div>
     </aside>
     <section class="workspace" aria-label="布局工作区">
       <div class="workspace-toolbar"><div class="workspace-title"><span class="status-dot"></span><h1 id="workspace-heading" tabindex="-1">工作区</h1><span class="label-tag">自由构建 / 网格约束</span></div><div class="history"><button id="undo" aria-label="撤销" title="撤销 Ctrl / Cmd + Z">↶</button><button id="redo" aria-label="重做" title="重做 Ctrl / Cmd + Shift + Z">↷</button><span class="divider"></span><label class="zoom-label">缩放 <select id="zoom" aria-label="画布缩放"><option value="0.5">50%</option><option value="0.75">75%</option><option value="1" selected>100%</option><option value="1.25">125%</option></select></label></div></div>

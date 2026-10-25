@@ -1,4 +1,4 @@
-/** 首页装饰坐标，与工作区的真实 12px 布局数据无关。 */
+/** 首页固定视口的装饰坐标，与文档滚动和工作区的真实 12px 布局数据无关。 */
 export const HOME_POINTER_GRID = 32;
 export function homePointer(x: number, y: number, width: number, height: number) {
   if (![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0) return null;

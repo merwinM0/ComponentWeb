@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { HOME_POINTER_GRID, homePointer } from './home-pointer';
 
-test('交互坐标以介绍区为基准，中心不产生偏转', () => {
+test('交互坐标以固定视口为基准，中心不产生偏转', () => {
   expect(homePointer(480, 200, 960, 400)).toEqual({ x: 480, y: 200, cellX: 480, cellY: 192, cellWidth: 32, cellHeight: 32, shiftX: 0, shiftY: 0, tiltX: -0, tiltY: 0 });
 });
 test('网格吸附与光标位置独立，不会修改实际指针坐标', () => {
@@ -19,6 +19,15 @@ test('窄屏与小于一格的区域仍有合法选框', () => {
     const point = homePointer(width, height, width, height)!;
     expect(point.cellX).toBeGreaterThanOrEqual(0); expect(point.cellY).toBeGreaterThanOrEqual(0);
     expect(point.cellX + point.cellWidth).toBeLessThanOrEqual(width); expect(point.cellY + point.cellHeight).toBeLessThanOrEqual(height);
+  }
+});
+test('整屏坐标覆盖宽屏和手机视口的四角，而非中间内容框', () => {
+  for (const [width, height] of [[1920, 1080], [3840, 2160], [320, 568]]) {
+    for (const [x, y] of [[0, 0], [width - 1, 0], [0, height - 1], [width - 1, height - 1]]) {
+      const point = homePointer(x, y, width, height)!;
+      expect(point.x).toBe(x); expect(point.y).toBe(y);
+      expect(point.cellX + point.cellWidth).toBeLessThanOrEqual(width); expect(point.cellY + point.cellHeight).toBeLessThanOrEqual(height);
+    }
   }
 });
 test('无效尺寸和非有限位置不参与交互', () => {

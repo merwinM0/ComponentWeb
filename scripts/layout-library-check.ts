@@ -23,7 +23,7 @@ async function checkWorkflow(source: Page) {
   const page = await context.newPage(), errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   try {
     await page.goto(rootURL(source)); await page.locator('.layout-item').waitFor();
-    assert(await page.locator('#layout-home').isVisible() && await page.locator('#editor-page').isHidden(), '启动停留布局库首页，必须明确选择布局');
+    assert(await page.locator('#layout-home').isVisible() && await page.locator('#home-backdrop').isVisible() && await page.locator('#editor-page').isHidden(), '启动停留独立首页，显示整屏背景，必须明确选择布局');
     assert(await page.locator('#editor-page').evaluate(element => (element as HTMLElement).inert) && await page.locator('#editor-actions').isHidden() && await page.locator('#canvas .node').count() === 0, '首页隔离编辑操作，且不会挂载或运行隐藏布局的组件');
     let all = await items(page); const first = all[0]!;
     assert(all.length === 1 && JSON.stringify(first.document) === JSON.stringify(doc), '旧单布局完整迁入首页，保留原 ID 和子树');
@@ -31,10 +31,10 @@ async function checkWorkflow(source: Page) {
     await audit(page, '布局库首页');
     await page.locator('#new-layout').click(); await page.locator('#layout-form [data-cancel]').click(); assert((await items(page)).length === 1, '取消新建不添加记录');
     await selectHome(page, first.id);
-    assert(new URL(page.url()).hash === layoutHash(first.id) && await page.locator('#component-library').isVisible(), '选择布局进入独立地址，编辑器只显示组件库');
+    assert(new URL(page.url()).hash === layoutHash(first.id) && await page.locator('#component-library').isVisible() && await page.locator('#home-backdrop').isHidden(), '选择布局进入独立地址，编辑器只显示组件库，整屏背景不进入工作区');
     assert(await page.locator('#show-layouts,#show-components,.library #layout-list').count() === 0, '左侧不再混入布局库入口或列表');
     await page.locator('#save').click(); assert((await items(page)).length === 1, '保存只更新当前布局');
-    await home(page); assert(await page.locator('#canvas .node').count() === 0, '返回首页销毁工作区节点，停止隐藏的媒体和预览组件'); const firstTime = (await items(page))[0]!.updatedAt;
+    await home(page); assert(await page.locator('#canvas .node').count() === 0 && await page.locator('#home-backdrop').isVisible(), '返回首页恢复背景，销毁工作区节点以停止隐藏的媒体和预览组件'); const firstTime = (await items(page))[0]!.updatedAt;
     await page.goBack(); await page.locator('#editor-page').waitFor({ state: 'visible' });
     await page.goForward(); await page.locator('#layout-home').waitFor({ state: 'visible' });
     assert((await items(page))[0]!.updatedAt === firstTime, '返回首页和浏览器前进后退不改变修改时间');
