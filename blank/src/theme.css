@@ -1,0 +1,43 @@
+/* 暗色沿用现有令牌；主题只控制工作台外壳，不改组件自己的配色。 */
+.editor-actions { display:flex;align-items:center;gap:10px; }
+.topbar .theme-toggle { display:grid;place-items:center;flex-shrink:0;width:36px;height:36px;padding:0;border-radius:2px;background:transparent;font-size:20px;line-height:1;color:var(--muted); }
+.topbar .theme-toggle:hover { color:var(--accent);background:var(--raised); }
+.topbar .theme-toggle:focus-visible { outline-width:1px;outline-offset:2px; }
+:root[data-theme='light'] { color-scheme:light;--bg:#ffffff;--surface:#f6f9fb;--raised:#eaf0f5;--border:#c5d1dc;--text:#172b3b;--muted:#526575;--accent:#075e89;--danger:#aa3434;--grid:rgba(0,0,0,.08);--home-grid-strength:8%;--home-grid-focus-strength:22%; }
+:root[data-theme='light'] button:hover:not(:disabled) { background:var(--raised);border-color:#8298ab; }
+:root[data-theme='light'] .primary { background:var(--accent);border-color:var(--accent);color:#ffffff; }
+:root[data-theme='light'] .primary:hover:not(:disabled) { background:#064b6d;border-color:#064b6d;color:#ffffff; }
+:root[data-theme='light'] input,:root[data-theme='light'] textarea,:root[data-theme='light'] select { background:#ffffff;border-color:#8799a9; }
+:root[data-theme='light'] input::placeholder,:root[data-theme='light'] textarea::placeholder { color:var(--muted); }
+:root[data-theme='light'] .search { background:var(--bg);border-color:#8799a9; }
+:root[data-theme='light'] .search input { background:transparent; }
+:root[data-theme='light'] .home-list-toolbar .search { background:transparent; }
+:root[data-theme='light'] .home-list-toolbar .search:focus-within { border-color:var(--accent); }
+:root[data-theme='light'] .topbar,:root[data-theme='light'] .panel,:root[data-theme='light'] .statusbar { background:var(--surface); }
+:root[data-theme='light'] .workspace { background:var(--bg); }
+:root[data-theme='light'] .workspace-toolbar { border-color:var(--border); }
+:root[data-theme='light'] .viewport { background:#f0f4f7;border-color:#8d9eac;scrollbar-color:#93a6b5 #f0f4f7; }
+:root[data-theme='light'] .component-tile { background:var(--surface); }
+:root[data-theme='light'] .tile-preview { background-image:radial-gradient(#bac8d3 .7px,transparent .7px); }
+:root[data-theme='light'] .preview-caption,:root[data-theme='light'] .mini-table { color:var(--muted); }
+:root[data-theme='light'] .mini-number { color:var(--accent); }
+:root[data-theme='light'] .mini-number small { color:#24724f; }
+:root[data-theme='light'] .mini-badge { color:var(--accent);border-color:var(--accent); }
+:root[data-theme='light'] .badge,:root[data-theme='light'] .category-tabs .active,:root[data-theme='light'] .layer-item[aria-pressed='true'],:root[data-theme='light'] .radius-presets button[aria-pressed='true'] { background:var(--raised);color:var(--accent); }
+:root[data-theme='light'] .identity-icon { background:var(--raised);border-color:var(--border); }
+:root[data-theme='light'] .library-note strong { color:var(--text); }
+:root[data-theme='light'] .inspector-note,:root[data-theme='light'] .section-title span,:root[data-theme='light'] .inline-note { color:var(--muted); }
+:root[data-theme='light'] .inspector-note span,:root[data-theme='light'] .no-selection > span { color:var(--accent); }
+:root[data-theme='light'] .editor-dialog,:root[data-theme='light'] .context-menu,:root[data-theme='light'] #arrange-actions { background:var(--surface);border-color:#8298ab;box-shadow:0 12px 32px #172b3b26; }
+:root[data-theme='light'] .context-menu button:focus-visible { background:var(--raised); }
+:root[data-theme='light'] .editor-dialog::backdrop { background:#172b3b66; }
+:root[data-theme='light'] .inline-editor { background:var(--raised);border-color:var(--border); }
+:root[data-theme='light'] #edit-pending { color:#246b4f; }
+:root[data-theme='light'] #edit-pending.pending { color:#855011; }
+:root[data-theme='light'] .contrast-hint.low-contrast { color:#99500c; }
+:root[data-theme='light'] .node-label { color:#ffffff; }
+:root[data-theme='light'] .node.scope-root { outline-color:var(--accent); }
+:root[data-theme='light'] .resize-handle { border-color:#ffffff; }
+:root[data-theme='light'] .placement-ghost span { background:#dcecf6;color:#164265; }
+:root[data-theme='light'] #toast { background:var(--surface);color:var(--text);border-color:#8298ab; }
+@media(max-width:800px) { .editor-actions { gap:6px; } }

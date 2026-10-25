@@ -1,4 +1,6 @@
 import { Store } from './core/store';
+import { ThemePreferences } from './core/theme';
+import { setupTheme } from './editor/theme';
 import { Layouts } from './core/layouts';
 import { setupLayoutWorkspace } from './editor/layout-workspace';
 import { Combinations } from './core/combinations';
@@ -14,10 +16,12 @@ import { setupContextMenu } from './editor/context-menu';
 import { actionButton, selectionActions } from './editor/selection-actions';
 
 const layouts = new Layouts();
+const theme = new ThemePreferences(undefined, layouts.current.document.appearance);
+setupTheme(theme);
 const store = new StoreRouter(new Store(layouts.current.document));
 const session = new InlineEdit(store);
 const combinations = new Combinations();
-const editor = new Editor(store, session, false);
+const editor = new Editor(store, session, false, theme);
 const elements = setupElementEditing(editor);
 const dialogs = setupCombinationDialogs(editor, combinations);
 const gestures = setupGestures(editor, combinations);

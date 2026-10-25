@@ -45,7 +45,7 @@ export function setupLayoutWorkspace(editor: Editor, router: StoreRouter, layout
     isHome = home; editor.active = !home;
     if (home) { editor.renderer.clear(); editor.contextRenderer.clear(); }
     $('layout-home').hidden = !home; $('home-backdrop').hidden = !home; $('editor-page').hidden = home; $('editor-page').inert = home;
-    $('layout-navigation').hidden = home; $('editor-actions').hidden = home; $('editor-status').hidden = home; $('home-location').hidden = !home;
+    $('layout-navigation').hidden = home; $('editor-actions').hidden = home; $('editor-status').hidden = home;
     document.body.classList.toggle('home-view', home); document.body.dataset.view = home ? 'home' : 'editor'; $('toast').hidden = true;
   }
   function enter(item: SavedLayout, mode: HistoryMode) {

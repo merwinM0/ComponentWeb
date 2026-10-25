@@ -1,5 +1,7 @@
 import { createNode, findSpace, GRID, parseDocument, type Document, type Placement } from '../core/model';
 import { CANVAS } from '../core/grid';
+import { ThemePreferences } from '../core/theme';
+import { applyGridAppearance } from './theme';
 import type { InlineEdit } from '../core/inline-edit';
 import { workingSize } from '../core/assembly';
 import type { ElementEdit } from '../core/element-edits';
@@ -35,7 +37,7 @@ export class Editor {
   private lastScope: string | null = null;
   private lastContext: object | null = null;
   private colorPreviewId: string | null = null;
-  constructor(readonly store: StorePort, readonly session?: InlineEdit, active = true) {
+  constructor(readonly store: StorePort, readonly session?: InlineEdit, active = true, readonly preferences = new ThemePreferences()) {
     this.active = active;
     this.contextRenderer = new CanvasRenderer($('context-layer'), () => {});
     this.renderer = new CanvasRenderer(this.canvas, id => { if (!this.preview && !this.selectedIds.has(id)) this.select(id); });
@@ -43,7 +45,16 @@ export class Editor {
     this.canvas.style.setProperty('--grid-cell', `${GRID.cell}px`); this.canvas.style.setProperty('--grid-major', '48px');
     $('grid-cell-label').textContent = `${GRID.cell} px 网格`;
     this.setZoom(1);
-    store.subscribe(() => this.render());
+    let appearanceContext = store.contextToken ?? store, documentAppearance = JSON.stringify(store.doc.appearance);
+    store.subscribe(() => {
+      const context = store.contextToken ?? store, value = JSON.stringify(store.doc.appearance);
+      const changed = context === appearanceContext && value !== documentAppearance;
+      appearanceContext = context; documentAppearance = value;
+      // 保留画布配色的撤销 / 重做；切换布局或草稿不覆盖浏览器的当前外观。
+      if (changed) this.preferences.setAppearance(store.doc.appearance);
+      this.render();
+    });
+    this.preferences.subscribe(() => { this.applyAppearance(this.appearance); this.onSelection(); });
     this.canvas.addEventListener('component-action', event => toast(String((event as CustomEvent).detail || '操作已触发')));
     this.render();
   }
@@ -67,7 +78,7 @@ export class Editor {
   setSelection(ids: Iterable<string>) {
     if (this.colorPreviewId) { const node = this.store.doc.nodes.find(node => node.id === this.colorPreviewId); if (node) this.renderer.preview(node.id, node.props); this.colorPreviewId = null; }
     this.selectedTag = null;
-    this.applyAppearance(this.store.doc.appearance);
+    this.applyAppearance(this.appearance);
     this.selectedIds = new Set(topSelection(this.store.doc.nodes, ids).map(node => node.id));
     this.renderer.selection(this.store.doc.nodes, this.selectedIds, this.preview);
     this.selectionStatus(); this.onSelection();
@@ -78,14 +89,23 @@ export class Editor {
     document.querySelectorAll<HTMLButtonElement>('[data-selection-action]').forEach(button => { button.disabled = this.preview || !this.selectedIds.size; });
   }
   previewColors(id: string, props: Props) { this.colorPreviewId = id; this.renderer.preview(id, props);  }
-  applyAppearance(appearance: Document['appearance']) { this.canvas.style.setProperty('--canvas-background', appearance.background); this.canvas.style.setProperty('--canvas-grid', appearance.grid); }
+  get appearance() { return this.preferences.appearance; }
+  changeAppearance(appearance: Document['appearance']) {
+    if (!this.active || this.preview) return;
+    this.store.commit({ ...this.store.doc, appearance }, this.appearance);
+    this.preferences.setAppearance(appearance); if (this.preferences.warning) toast(this.preferences.warning);
+  }
+  applyAppearance(appearance: Document['appearance']) {
+    this.canvas.style.setProperty('--canvas-background', appearance.background); this.canvas.style.setProperty('--canvas-grid', appearance.grid);
+    applyGridAppearance(this.preferences, appearance);
+  }
   render() {
     if (!this.active) return;
     const context = this.store.contextToken ?? this.store;
     if (this.lastScope !== this.scopeRootId || this.lastContext !== context) { this.renderer.clear(); this.selectedTag = null; this.lastScope = this.scopeRootId; this.lastContext = context; }
     const size = this.pageSize; Object.assign(this.canvas.style, { width: `${size.width}px`, height: `${size.height}px` });
     this.setZoom(this.zoom);
-    this.colorPreviewId = null; this.applyAppearance(this.store.doc.appearance);
+    this.colorPreviewId = null; this.applyAppearance(this.appearance);
     this.selectedIds = new Set([...this.selectedIds].filter(id => this.store.doc.nodes.some(node => node.id === id)));
     if (this.selectedTag && (!this.selectedIds.has(this.selectedTag.id) || !this.store.doc.nodes.some(node => node.id === this.selectedTag!.id && !isContainer(node)))) this.selectedTag = null;
     if (this.session?.current) this.contextRenderer.render(this.session.current.background, new Set(), true);

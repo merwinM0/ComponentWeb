@@ -9,7 +9,7 @@ export interface StorePort {
   readonly canUndo: boolean;
   readonly canRedo: boolean;
   subscribe(listener: () => void): () => unknown;
-  commit(doc: Document): void;
+  commit(doc: Document, appearanceBefore?: Document['appearance']): void;
   undo(): void;
   redo(): void;
 }
@@ -25,9 +25,11 @@ export class Store implements StorePort {
   get canRedo() { return this.future.length > 0; }
   subscribe(listener: () => void) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
   private notify() { this.listeners.forEach(listener => listener()); }
-  commit(doc: Document) {
-    if (JSON.stringify(doc) === JSON.stringify(this.doc)) return;
-    this.past.push(structuredClone(this.doc));
+  commit(doc: Document, appearanceBefore?: Document['appearance']) {
+    // 网格外观独立于布局；配色操作的撤销基线应是用户刚才看见的颜色。
+    const previous = appearanceBefore ? { ...this.doc, appearance: appearanceBefore } : this.doc;
+    if (JSON.stringify(doc) === JSON.stringify(previous)) return;
+    this.past.push(structuredClone(previous));
     if (this.past.length > 80) this.past.shift();
     this.doc = structuredClone(doc);
     this.future = [];

@@ -115,13 +115,13 @@ export function setupInspector(editor: Editor) {
     container.append(layerPanel(editor));
     container.append(section(editor.scopeRootId ? '工作区网格' : '画布配色', 'CANVAS'));
     container.append(colorControls({ prefix: 'canvas', fields: editor.scopeRootId ? [['grid', '工作区网格线色']] : [['background', '画布背景'], ['grid', '网格线色']],
-      values: editor.store.doc.appearance, disabled: editor.preview,
+      values: editor.appearance, disabled: editor.preview,
       preview: values => editor.applyAppearance(values as typeof DEFAULT_APPEARANCE),
-      commit: values => editor.store.commit({ ...editor.store.doc, appearance: values as typeof DEFAULT_APPEARANCE }),
+      commit: values => editor.changeAppearance(values as typeof DEFAULT_APPEARANCE),
     }));
     const resetCanvas = document.createElement('button');
     resetCanvas.className = 'reset-colors'; resetCanvas.textContent = editor.scopeRootId ? '↶ 恢复工作区网格默认线色' : '↶ 恢复画布默认配色'; resetCanvas.disabled = editor.preview;
-    resetCanvas.addEventListener('click', () => editor.store.commit({ ...editor.store.doc, appearance: editor.scopeRootId ? { ...editor.store.doc.appearance, grid: DEFAULT_APPEARANCE.grid } : { ...DEFAULT_APPEARANCE } }));
+    resetCanvas.addEventListener('click', () => editor.changeAppearance(editor.scopeRootId ? { ...editor.appearance, grid: editor.preferences.defaults.grid } : editor.preferences.defaults));
     container.append(resetCanvas);
     if (restoreId) {
       const control = document.getElementById(restoreId) as HTMLInputElement | HTMLTextAreaElement | null;

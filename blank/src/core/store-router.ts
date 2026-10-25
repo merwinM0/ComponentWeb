@@ -15,7 +15,7 @@ export class StoreRouter implements StorePort {
   activate(store: Store) {
     this.unsubscribe(); this.active = store; this.unsubscribe = store.subscribe(() => this.notify()); this.notify();
   }
-  commit(doc: Document) { this.active.commit(doc); }
+  commit(doc: Document, appearanceBefore?: Document['appearance']) { this.active.commit(doc, appearanceBefore); }
   undo() { this.active.undo(); }
   redo() { this.active.redo(); }
 }

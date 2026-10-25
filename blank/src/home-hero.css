@@ -1,14 +1,14 @@
 /* 背景铺满视口，内容保持可读宽度；装饰层不接管命中、滚动或编辑器。 */
-.home-backdrop { position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;contain:layout paint; }
+.home-backdrop { position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;contain:layout paint;background:var(--home-grid-background,var(--bg)); }
 body:not(.home-view) > .home-backdrop { display:none; }
 body.home-view > .topbar { position:relative;z-index:10;background:color-mix(in srgb,var(--bg) 96%,transparent); }
 .layout-home { position:relative;z-index:1; }
 .home-hero { position:relative;isolation:isolate;overflow:hidden;padding:44px 24px 28px;margin-bottom:16px; }
 .hero-art { position:absolute;inset:0;pointer-events:none;z-index:-1;perspective:900px; }
-.hero-grid,.hero-grid-focus { position:absolute;inset:0;background-image:linear-gradient(to right,color-mix(in srgb,var(--accent) 5%,transparent) 1px,transparent 1px),linear-gradient(to bottom,color-mix(in srgb,var(--accent) 5%,transparent) 1px,transparent 1px);background-size:32px 32px; }
+.hero-grid,.hero-grid-focus { position:absolute;inset:0;background-image:linear-gradient(to right,color-mix(in srgb,var(--home-grid-color,var(--accent)) var(--home-grid-strength,5%),transparent) 1px,transparent 1px),linear-gradient(to bottom,color-mix(in srgb,var(--home-grid-color,var(--accent)) var(--home-grid-strength,5%),transparent) 1px,transparent 1px);background-size:32px 32px; }
 /* 跟随层仅重绘有限大小的区域，不在宽屏上逐帧重绘整张渐变。 */
 .hero-spotlight { position:absolute;left:0;top:0;width:640px;height:640px;opacity:0;background:radial-gradient(closest-side,color-mix(in srgb,var(--accent) 10%,transparent),transparent);transform:translate3d(calc(var(--pointer-x,50vw) - 320px),calc(var(--pointer-y,50vh) - 320px),0);transition:opacity .22s; }
-.hero-grid-focus { inset:auto;left:0;top:0;width:448px;height:448px;opacity:0;background-image:linear-gradient(to right,color-mix(in srgb,var(--accent) 35%,transparent) 1px,transparent 1px),linear-gradient(to bottom,color-mix(in srgb,var(--accent) 35%,transparent) 1px,transparent 1px);background-position:calc(224px - var(--pointer-x,50vw)) calc(224px - var(--pointer-y,50vh));mask-image:radial-gradient(closest-side,#000,transparent 95%);transform:translate3d(calc(var(--pointer-x,50vw) - 224px),calc(var(--pointer-y,50vh) - 224px),0);transition:opacity .22s; }
+.hero-grid-focus { inset:auto;left:0;top:0;width:448px;height:448px;opacity:0;background-image:linear-gradient(to right,color-mix(in srgb,var(--home-grid-color,var(--accent)) var(--home-grid-focus-strength,35%),transparent) 1px,transparent 1px),linear-gradient(to bottom,color-mix(in srgb,var(--home-grid-color,var(--accent)) var(--home-grid-focus-strength,35%),transparent) 1px,transparent 1px);background-position:calc(224px - var(--pointer-x,50vw)) calc(224px - var(--pointer-y,50vh));mask-image:radial-gradient(closest-side,#000,transparent 95%);transform:translate3d(calc(var(--pointer-x,50vw) - 224px),calc(var(--pointer-y,50vh) - 224px),0);transition:opacity .22s; }
 .hero-cell { position:absolute;top:0;left:0;width:var(--cell-width,32px);height:var(--cell-height,32px);transform:translate3d(var(--cell-x,0px),var(--cell-y,0px),0);border:1px solid color-mix(in srgb,var(--accent) 75%,transparent);background:color-mix(in srgb,var(--accent) 8%,transparent);opacity:0;transition:transform .12s ease-out,opacity .18s; }
 .hero-cell::before,.hero-cell::after { content:"";position:absolute;width:4px;height:4px;background:var(--accent); }
 .hero-cell::before { top:-2px;left:-2px; }.hero-cell::after { bottom:-2px;right:-2px; }
@@ -50,8 +50,8 @@ body.home-view > .topbar { position:relative;z-index:10;background:color-mix(in 
 .hero-mini-caption { display:block;padding:4px 12px 10px;font-size:9px; }
 .home-hero[data-motion='interacting'] .hero-piece { opacity:.95;border-color:color-mix(in srgb,var(--accent) 45%,var(--border)); }
 .hero-corner { position:absolute;width:8px;height:8px;color:var(--accent);opacity:.35; }.hero-corner-start { top:0;left:0;border-top:1px solid;border-left:1px solid; }.hero-corner-end { right:0;bottom:0;border-right:1px solid;border-bottom:1px solid; }
-.home-library-controls { position:sticky;top:0;z-index:4;background:var(--bg);padding:16px 0 8px; }.home-library-controls .home-list-toolbar { margin-bottom:8px; }
-body.home-view .home-library-controls { background:color-mix(in srgb,var(--bg) 98%,transparent); }
+/* 透明工具区随页面滚动，避免布局条目穿透并叠在搜索 / 新建控件下。 */
+.home-library-controls { position:relative;z-index:4;background:transparent;padding:16px 0 8px; }.home-library-controls .home-list-toolbar { margin-bottom:8px; }
 body.home-view .layout-item { background:color-mix(in srgb,var(--bg) 82%,transparent); }
 .layout-item { position:relative;isolation:isolate;overflow:hidden;transition:background .15s,box-shadow .15s; }
 .layout-item > * { position:relative;z-index:1; }
