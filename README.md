@@ -2,6 +2,8 @@
 
 一个基于 **Bun + HTML + CSS + TypeScript** 的可视化组件布局工作台。使用真实 DOM 和 Shadow DOM，无需前端框架。
 
+![](/home/mo/mon/my_programs/ComponentWeb/home.png)
+
 ## 功能
 
 - 内置 138 项素材，包括常用组件、HTML 标签和布局容器。
