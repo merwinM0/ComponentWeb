@@ -39,6 +39,14 @@
 .context-menu button { display:block;width:100%;text-align:left;border:0;background:transparent;padding:7px 12px;font-size:12px;border-radius:3px; }
 .context-menu button:focus-visible { outline-offset:-2px;background:#223b4e; }
 .editor-dialog { width:min(420px,calc(100vw - 32px));max-height:calc(100dvh - 40px);overflow:auto;padding:24px;background:#101d29;color:var(--text);border:1px solid #48657d;border-radius:8px;box-shadow:0 20px 80px #0008; }
+.typography-panel,.constraints-panel { margin:0; }
+.typography-panel input,.typography-panel select,.constraints-panel input,.constraints-panel select { width:100%; }
+.content-height-canvas { position:fixed;left:-100000px;top:0;width:1344px;height:2880px;visibility:hidden;pointer-events:none; }
+.content-height-probe { position:fixed;left:-100000px;top:0;opacity:0;pointer-events:none; }
+.alignment-guides { position:absolute;inset:0;pointer-events:none;z-index:21; }
+.alignment-guide { position:absolute;background:var(--accent);opacity:.85; }
+.alignment-guide.x { width:1px; }
+.alignment-guide.y { height:1px; }
 .editor-dialog.import-dialog { width:min(880px,calc(100vw - 32px)); }
 .import-dialog form { display:grid;grid-template-columns:minmax(180px,1fr) minmax(0,2fr);gap:16px 24px; }
 .import-dialog h2 { grid-column:1/-1;margin:0; }

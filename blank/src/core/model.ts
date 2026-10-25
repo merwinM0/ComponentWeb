@@ -1,3 +1,5 @@
+import { parseTypography } from '../components/typography';
+import { parseConstraints } from './item-constraints';
 import { registry } from '../components/registry';
 import { colorsOf, COLOR_FIELDS, isColor } from '../components/colors';
 import { isValidShape, shapeOf } from '../components/shape';
@@ -66,6 +68,9 @@ export function parseDocument(raw: string, draft = false): Document {
     const node: Placement = { id: source.id, type: source.type, parentId: structured ? source.parentId ?? null : null,
       col: source.col * scale, row: source.row * scale, colSpan: source.colSpan * scale, rowSpan: source.rowSpan * scale,
       props: { title: source.props.title, description: source.props.description, ...colors, ...shapeOf(source.props), source: source.props.source ?? '' } };
+    if (source.props.typography !== undefined) node.props.typography = parseTypography(source.props.typography);
+    if (source.constraints !== undefined) node.constraints = parseConstraints(source.constraints);
+    if (node.constraints?.heightMode === 'content' && (isContainer(node) || node.type.startsWith('imported.'))) throw new Error('内容自适应高度仅适用于原生非容器组件');
     if (node.parentId !== null && (typeof node.parentId !== 'string' || !node.parentId)) throw new Error('父容器 ID 无效');
     if (isContainer(node)) {
       const size = source.design === undefined ? { width: node.colSpan * GRID.cell, height: node.rowSpan * GRID.cell } : source.design;

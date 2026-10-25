@@ -1,3 +1,5 @@
+import { typographyPanel } from './typography-panel';
+import { constraintsPanel } from './constraints-panel';
 import { registry } from '../components/registry';
 import { colorsOf, COLOR_FIELDS, palettes } from '../components/colors';
 import { DEFAULT_APPEARANCE, GRID } from '../core/model';
@@ -49,7 +51,7 @@ export function setupInspector(editor: Editor) {
             <label class="field">${node.id === editor.scopeRootId ? '编辑框宽 W' : isContainer(node) ? '显示宽 W' : '宽度 W'}（px）<input id="prop-colSpan" name="colSpan" type="number" min="${definition.min[0] * GRID.cell}" max="${node.id === editor.scopeRootId ? EDIT_SPACE.width : (automatic ? editor.store.doc.grid.cols : area.cols - node.col) * GRID.cell}" step="any" required></label>
             <label class="field">${node.id === editor.scopeRootId ? '编辑框高 H' : isContainer(node) ? '显示高 H' : '高度 H'}（px）<input id="prop-rowSpan" name="rowSpan" type="number" min="${definition.min[1] * GRID.cell}" max="${node.id === editor.scopeRootId ? EDIT_SPACE.height : (automatic ? editor.store.doc.grid.rows : area.rows - node.row) * GRID.cell}" step="any" required></label>
           </div>
-          <p class="inspector-help">拖动按 ${GRID.cell}px 吸附；输入框单位为像素。${automatic ? `<br>位置由父容器自动排版；输入为请求尺寸，Grid 宽度由列控制。实际 ${Math.round(editor.logicalRect(node.id).colSpan * GRID.cell)} × ${Math.round(editor.logicalRect(node.id).rowSpan * GRID.cell)} px。` : ''}${isContainer(node) && node.id !== editor.scopeRootId ? '<br>显示宽高仅缩放整体；内部设计尺寸可在下方设置。' : parent ? '<br>子项尺寸与坐标使用父容器的内部设计网格。' : ''}${node.id === editor.scopeRootId ? '<br>编辑框宽高立即生效；添加和移动必须在框内，不会自动扩展。完成后的显示尺寸在上方单独设置。' : ''}<br>最小 ${definition.min[0] * GRID.cell} × ${definition.min[1] * GRID.cell} px</p>
+          <p class="inspector-help">拖动按 ${GRID.cell}px 吸附；输入框单位为像素。${automatic ? `<br>位置由父容器自动排版；输入为请求尺寸，伸缩、跨格和内容高度决定实际尺寸。实际 ${Math.round(editor.logicalRect(node.id).colSpan * GRID.cell)} × ${Math.round(editor.logicalRect(node.id).rowSpan * GRID.cell)} px。` : ''}${isContainer(node) && node.id !== editor.scopeRootId ? '<br>显示宽高仅缩放整体；内部设计尺寸可在下方设置。' : parent ? '<br>子项尺寸与坐标使用父容器的内部设计网格。' : ''}${node.id === editor.scopeRootId ? '<br>编辑框宽高立即生效；添加和移动必须在框内，不会自动扩展。完成后的显示尺寸在上方单独设置。' : ''}<br>最小 ${definition.min[0] * GRID.cell} × ${definition.min[1] * GRID.cell} px</p>
           <div class="section-title">组件内容 <span>CONTENT</span></div>
           <label class="field full">标题 / 文本<input id="prop-title" name="title" type="text" maxlength="120"></label>
           <label class="field full">${definition.contentLabel ?? (node.type === 'data.metric' ? '指标数值' : '说明文字')}<textarea id="prop-description" name="description" maxlength="1000"></textarea></label>
@@ -64,6 +66,7 @@ export function setupInspector(editor: Editor) {
       }
       form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input, textarea').forEach(control => { control.disabled = editor.preview; });
       if (automatic) { $<HTMLInputElement>('prop-col').disabled = true; $<HTMLInputElement>('prop-row').disabled = true; }
+      if (node.constraints?.heightMode === 'content' && node.id !== editor.scopeRootId) $<HTMLInputElement>('prop-rowSpan').disabled = true;
       if (parent?.layout?.mode === 'grid') $<HTMLInputElement>('prop-colSpan').disabled = true;
       form.addEventListener('submit', event => event.preventDefault());
       form.addEventListener('change', event => {
@@ -76,6 +79,8 @@ export function setupInspector(editor: Editor) {
         if (!editor.update(updated)) render();
       });
       if (editor.scopeRootId && !isContainer(node)) container.append(elementPanel(editor, node));
+      container.append(typographyPanel(editor));
+      container.append(constraintsPanel(editor));
       container.append(layoutPanel(editor));
       container.append(section('圆角与边框', 'SHAPE'));
       container.append(shapeControls(shapeOf(node.props), editor.preview,

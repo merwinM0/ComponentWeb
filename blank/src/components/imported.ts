@@ -1,3 +1,4 @@
+import { typographyCSS } from './typography';
 import type { ComponentDefinition } from './contract';
 
 export const IMPORT_KEY = 'componentweb.imports.v1';
@@ -20,9 +21,10 @@ export function importedDefinition(record: ImportedRecord): ComponentDefinition 
       root.append(frame);
       let previous: string | undefined;
       const update = (next: typeof props) => {
-        if (previous === next.source) return;
-        previous = next.source;
-        frame.srcdoc = `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src 'none'; form-action 'none'; base-uri 'none';"><style>html,body{margin:0;min-height:100%;font-family:system-ui}*{box-sizing:border-box}</style></head><body>${next.source ?? ''}</body></html>`;
+        const key = JSON.stringify([next.source, next.typography]);
+        if (previous === key) return;
+        previous = key;
+        frame.srcdoc = `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src 'none'; form-action 'none'; base-uri 'none';"><style>html,body{margin:0;min-height:100%;font-family:system-ui}*{box-sizing:border-box}</style></head><body>${next.source ?? ''}<style>${typographyCSS(next.typography).replaceAll(':host', 'html').replaceAll(';', '!important;').replace('}', '!important}')}</style></body></html>`;
       };
       update(props);
       return { update, destroy: () => root.replaceChildren() };

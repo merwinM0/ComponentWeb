@@ -1,3 +1,4 @@
+import { resolveContentHeights } from './content-height';
 import { InlineEdit, type EditView } from '../core/inline-edit';
 import { GRID } from '../core/grid';
 import { registry } from '../components/registry';
@@ -9,6 +10,7 @@ import { createNode, findSpace as findNew } from '../core/model';
 import { $, Editor, toast } from './editor';
 
 export function setupInlineEditing(editor: Editor, session: InlineEdit, combinations: Combinations, dialogs: ReturnType<typeof setupCombinationDialogs>, cancel: () => void, refreshLibrary: () => void) {
+  session.resolveDocument = (doc, rootId) => ({ ...doc, nodes: resolveContentHeights(doc, rootId) });
   const view = (): EditView => ({ selection: [...editor.selectedIds], zoom: editor.zoom, left: $('viewport').scrollLeft, top: $('viewport').scrollTop, fit: editor.fitView });
   const perform = (action: () => void) => { cancel(); try { action(); $('toast').hidden = true; } catch (error) { toast((error as Error).message); } };
   let restore = 0;

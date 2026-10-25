@@ -80,7 +80,8 @@
 }
 
 .category-tabs { flex-wrap:wrap; }
-.library-import { padding:4px 8px; font-size:11px; font-weight:400; color:var(--accent); background:transparent; }
+.library { position:relative; }
+.library-import { position:absolute;right:18px;top:20px;z-index:1;padding:4px 8px; font-size:11px; font-weight:400; color:var(--accent); background:transparent; }
 .library .search:focus-within { border-color:var(--accent); }
 #search:focus { outline:none; box-shadow:none; }
 #toggle-inspector { width:36px; height:36px; padding:0; border-radius:0; flex-shrink:0; align-self:flex-start; font-size:22px; }

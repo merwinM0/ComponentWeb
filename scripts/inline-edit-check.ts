@@ -18,7 +18,9 @@ async function selectTag(page: Page, tag: string) {
   assert(value, `存在可编辑标签 ${tag}`); await page.locator('#element-select').selectOption(value);
 }
 async function dragTile(page: Page, type: string, x: number, y: number) {
-  const tile = (await page.locator(`.component-tile[data-type="${type}"] .tile-preview`).boundingBox())!;
+  const preview = page.locator(`.component-tile[data-type="${type}"] .tile-preview`);
+  await preview.scrollIntoViewIfNeeded();
+  const tile = (await preview.boundingBox())!;
   await page.mouse.move(tile.x + 20, tile.y + 20); await page.mouse.down(); await page.mouse.move(x, y, { steps: 12 }); await page.mouse.up();
 }
 async function checkNative(source: Page) {
@@ -65,7 +67,7 @@ async function checkNative(source: Page) {
     await dragTile(page, 'basic.input', rootBox.x + rootBox.width + 100, rootBox.y + 300);
     assert(await page.locator('#canvas .node').count() === count, '拖入编辑框外不插入组件');
     await dragTile(page, 'basic.input', rootBox.x + 360, rootBox.y + 300);
-    assert(await page.locator('#canvas .node').count() === count + 1, '框内拖入成功'); await size(page, card.id, 600, 480, '拖入不会反向扩大父组件');
+    assert(await page.locator('#canvas .node').count() === count + 1, `框内拖入成功：${await page.locator('#toast').textContent()}`); await size(page, card.id, 600, 480, '拖入不会反向扩大父组件');
     await page.locator('#finish-edit').click(); assert(await page.locator('#inline-editor').isVisible() && (await page.locator('#toast').textContent())?.includes('未组装'), '框内散件仍需组装');
     await page.keyboard.press('Control+s'); assert(await page.locator('#inline-editor').isVisible(), '快捷键也不能跳过组装');
     await page.waitForTimeout(450); assert(await saved(page) === original, '编辑草稿不覆盖主工作区');

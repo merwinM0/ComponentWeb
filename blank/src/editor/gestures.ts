@@ -1,3 +1,4 @@
+import { alignmentGuides } from '../core/alignment-guides';
 import { createNode, GRID, type Placement } from '../core/model';
 import { registry } from '../components/registry';
 import { bounds, childrenOf, descendants, validateTree } from '../core/tree';
@@ -17,6 +18,7 @@ export function setupGestures(editor: Editor, combinations: Combinations) {
   };
   let state: State | undefined;
   const marquee = document.createElement('div'); marquee.className = 'marquee'; marquee.hidden = true; editor.canvas.append(marquee);
+  const guides = document.createElement('div'); guides.className = 'alignment-guides'; guides.setAttribute('aria-hidden', 'true'); editor.canvas.append(guides);
   const point = (event: PointerEvent) => { const rect = editor.canvas.getBoundingClientRect(); return { x: (event.clientX - rect.left) / editor.zoom / GRID.cell, y: (event.clientY - rect.top) / editor.zoom / GRID.cell }; };
   function dropTarget(event: PointerEvent, excluded: Set<string>) {
     for (const hit of document.elementsFromPoint(event.clientX, event.clientY)) {
@@ -67,6 +69,7 @@ export function setupGestures(editor: Editor, combinations: Combinations) {
   document.addEventListener('pointermove', event => {
     if (!state || event.pointerId !== state.pointer) return;
     const s = state; const p = point(event);
+    guides.replaceChildren();
     if (!s.active && Math.hypot(p.x - s.x, p.y - s.y) * GRID.cell * editor.zoom < 4) return;
     s.active = true; document.body.classList.add('gesture-active');
     if (s.kind === 'marquee') {
@@ -116,13 +119,21 @@ export function setupGestures(editor: Editor, combinations: Combinations) {
     const preview = bounds([...updates.values()].map(node => ({ ...node, col: node.col * origin.scaleX + origin.col, row: node.row * origin.scaleY + origin.row,
       colSpan: (node.id === editor.scopeRootId ? workingSize(node).width / GRID.cell : node.colSpan) * origin.scaleX, rowSpan: (node.id === editor.scopeRootId ? workingSize(node).height / GRID.cell : node.rowSpan) * origin.scaleY })));
     if (parent && parent.layout?.mode !== 'free') { preview.col = p.x - preview.colSpan / 2; preview.row = p.y - preview.rowSpan / 2; }
+    if (inside && (!parent || parent.layout?.mode === 'free')) {
+      const siblings = childrenOf(editor.store.doc.nodes, parentId).filter(node => !excluded.has(node.id)).map(node => editor.logicalRect(node.id));
+      for (const guide of alignmentGuides(preview, siblings, 5 / editor.zoom / GRID.cell)) {
+        const line = document.createElement('div'); line.className = `alignment-guide ${guide.axis}`;
+        Object.assign(line.style, guide.axis === 'x' ? { left: `${guide.at * GRID.cell}px`, top: `${guide.from * GRID.cell}px`, height: `${(guide.to - guide.from) * GRID.cell}px` } : { top: `${guide.at * GRID.cell}px`, left: `${guide.from * GRID.cell}px`, width: `${(guide.to - guide.from) * GRID.cell}px` });
+        guides.append(line);
+      }
+    }
     Object.assign(editor.ghost.style, { left: `${preview.col * GRID.cell}px`, top: `${preview.row * GRID.cell}px`, width: `${preview.colSpan * GRID.cell}px`, height: `${preview.rowSpan * GRID.cell}px` });
     editor.ghost.hidden = !inside; editor.ghost.classList.toggle('invalid', !s.valid);
     editor.ghost.querySelector('span')!.textContent = s.valid ? parent && parent.layout?.mode !== 'free' ? `放入 ${parent.layout!.mode.toUpperCase()} · 自动排版 / 调整顺序` : `${s.roots.length} 项 · ${Math.round(preview.colSpan * GRID.cell)} × ${Math.round(preview.rowSpan * GRID.cell)} px` : editor.scopeRootId ? '超出组件边界 · 请先调整编辑框尺寸' : '无法放置 · 重叠、越界或循环嵌套';
   });
   function finish(commit: boolean) {
     if (!state) return;
-    const s = state; state = undefined; editor.ghost.hidden = true; marquee.hidden = true;
+    const s = state; state = undefined; guides.replaceChildren(); editor.ghost.hidden = true; marquee.hidden = true;
     document.querySelectorAll('.dragging,.drop-target').forEach(element => element.classList.remove('dragging', 'drop-target')); document.body.classList.remove('gesture-active');
     if (s.element.hasPointerCapture(s.pointer)) s.element.releasePointerCapture(s.pointer);
     if (s.kind === 'marquee') { if (!s.active && s.parentId && commit) editor.select(s.parentId); return; }

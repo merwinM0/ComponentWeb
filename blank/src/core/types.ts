@@ -1,3 +1,4 @@
+import type { ItemConstraints } from './item-constraints';
 import type { Props } from '../components/contract';
 import type { CanvasGrid } from './grid';
 import type { ElementEdit, NativeSurface } from './element-edits';
@@ -24,6 +25,7 @@ export interface Placement {
   rowSpan: number;
   props: Props;
   layout?: ContainerLayout;
+  constraints?: ItemConstraints;
   /** 容器内部坐标系（px），与 colSpan / rowSpan 表示的显示尺寸分离。 */
   design?: DesignSize;
   elements?: ElementEdit[];

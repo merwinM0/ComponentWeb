@@ -22,7 +22,6 @@ const previews: Record<string, string> = {
 
 export function setupPanels(editor: Editor, combinations: Combinations, dialogs: { rename(id: string): void; remove(id: string): void }) {
   setupImportDialog(editor);
-  $('import-component').addEventListener('click', event => event.preventDefault());
   $('toggle-inspector').addEventListener('click', () => {
     const button = $('toggle-inspector');
     const collapsed = document.querySelector('.app-layout')!.classList.toggle('inspector-collapsed');

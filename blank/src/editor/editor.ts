@@ -1,3 +1,5 @@
+import { resolveContentHeights } from './content-height';
+import type { Typography } from '../components/typography';
 import { createNode, findSpace, GRID, parseDocument, type Document, type Placement } from '../core/model';
 import { CANVAS, canvasSize, matchesGrid } from '../core/grid';
 import { fitCanvasScale } from '../core/canvas-view';
@@ -129,7 +131,9 @@ export class Editor {
     try {
       nodes = this.prepareNodes(nodes);
       const pageError = this.pageError(nodes); if (pageError) throw new Error(pageError);
-      const doc = parseDocument(JSON.stringify({ ...this.store.doc, nodes }), !!this.scopeRootId);
+      let doc = parseDocument(JSON.stringify({ ...this.store.doc, nodes }), !!this.scopeRootId);
+      doc = parseDocument(JSON.stringify({ ...doc, nodes: resolveContentHeights(doc, this.scopeRootId) }), !!this.scopeRootId);
+      const resolvedError = this.pageError(doc.nodes); if (resolvedError) throw new Error(resolvedError);
       const root = doc.nodes.find(node => node.id === this.scopeRootId), old = this.scopeRoot;
       if (root && !isContainer(root) && old && JSON.stringify(root) !== JSON.stringify(old)) this.renderer.checkNative(root, true);
       const unchanged = JSON.stringify(doc) === JSON.stringify(this.store.doc);
@@ -160,6 +164,10 @@ export class Editor {
     return { col: area.col + Math.min(count % 4, area.cols - node.colSpan), row: area.row + Math.min(Math.floor(count / 4), area.rows - node.rowSpan) };
   }
   update(node: Placement) { return this.commit(this.store.doc.nodes.map(other => other.id === node.id ? node : other)); }
+  changeTypography(patch: Typography | null) {
+    const ids = new Set(this.selection.map(node => node.id));
+    return this.commit(this.store.doc.nodes.map(node => ids.has(node.id) ? { ...node, props: { ...node.props, typography: patch === null ? undefined : { ...node.props.typography, ...patch } } } : node));
+  }
   move(dx: number, dy: number) { return this.attempt(() => moveNodes(this.store.doc.nodes, this.selectedIds, dx, dy)); }
   align(value: Alignment) { this.attempt(() => arrangeVisual(this, nodes => alignNodes(nodes, this.selectedIds, value))); }
   distribute(axis: 'x' | 'y') { this.attempt(() => arrangeVisual(this, nodes => distributeNodes(nodes, this.selectedIds, axis))); }

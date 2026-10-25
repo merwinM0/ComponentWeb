@@ -1,3 +1,4 @@
+import { typographyPanel } from './typography-panel';
 import { freeSiblings } from '../core/operations';
 import { isContainer } from '../core/types';
 import type { Editor } from './editor';
@@ -37,5 +38,5 @@ export function renderMulti(container: HTMLElement, editor: Editor) {
   const help = document.createElement('p'); help.className = 'inspector-help'; help.textContent = '拖动任一所选项即可整体移动。对齐和分布仅作用于同一自由布局区域；一次操作可整体撤销。';
   const actions = document.createElement('div'); actions.className = 'batch-actions';
   selectionActions(editor).forEach(action => actions.append(actionButton(action)));
-  container.replaceChildren(heading, help, actions);
+  container.replaceChildren(heading, help, typographyPanel(editor), actions);
 }

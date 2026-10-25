@@ -1,3 +1,4 @@
+import type { Typography } from './typography';
 import { colorsOf, contrastRatio } from './colors';
 import { shapeOf, type ShapeSettings } from './shape';
 
@@ -9,6 +10,7 @@ export interface Props extends Partial<ShapeSettings> {
   text?: string;
   border?: string;
   source?: string;
+  typography?: Typography;
 }
 
 export interface ComponentDefinition {

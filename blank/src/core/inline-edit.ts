@@ -19,6 +19,7 @@ const clean = (doc: Document, draft = false) => parseDocument(JSON.stringify(doc
 export class InlineEdit {
   frames: EditFrame[] = [];
   onNavigate = (_view: EditView) => {};
+  resolveDocument = (doc: Document, _scopeRootId: string | null): Document => doc;
   constructor(readonly router: StoreRouter) {}
   get current() { return this.frames.at(-1); }
   get rootId() { return this.current?.rootId ?? null; }
@@ -88,8 +89,9 @@ export class InlineEdit {
     const replacement = root ? [root, ...draft.nodes.filter(node => node.id !== root.id)] : [];
     const nodes = frame.parent.doc.nodes.flatMap(node => node.id === source.id ? replacement : all.has(node.id) ? [] : [node]);
     const parentFrame = this.frames.at(-2);
-    if (parentFrame) { const error = editRegionError(nodes, parentFrame.rootId, parentFrame.bounds); if (error) throw new Error(error); }
-    const result = clean({ ...frame.parent.doc, nodes }, this.frames.length > 1);
+    const resolved = this.resolveDocument({ ...frame.parent.doc, nodes }, parentFrame?.rootId ?? null);
+    if (parentFrame) { const error = editRegionError(resolved.nodes, parentFrame.rootId, parentFrame.bounds); if (error) throw new Error(error); }
+    const result = clean(resolved, this.frames.length > 1);
     if (JSON.stringify(result) !== JSON.stringify(clean(frame.parent.doc, this.frames.length > 1))) frame.parent.commit(result);
     this.leave(root ? [root.id] : []);
   }

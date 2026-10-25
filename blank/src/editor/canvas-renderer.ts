@@ -1,3 +1,5 @@
+import { applyTypography } from '../components/typography';
+import { itemStyles } from './item-styles';
 import { registry } from '../components/registry';
 import { shapeOf } from '../components/shape';
 import { colorsOf } from '../components/colors';
@@ -17,7 +19,7 @@ export class CanvasRenderer {
   private previewMode = false;
   zoom = 1;
   constructor(readonly canvas: HTMLElement, private focus: (id: string) => void) {}
-  preview(id: string, props: Props) { const item = this.mounted.get(id); if (item) { restoreTags(item.host); item.instance.update(props); applyTags(item.host, item.node.elements); item.element.style.setProperty('--editing-background', colorsOf(props).background); } }
+  preview(id: string, props: Props) { const item = this.mounted.get(id); if (item) { restoreTags(item.host); item.instance.update(props); applyTypography(item.host, props.typography); applyTags(item.host, item.node.elements); item.element.style.setProperty('--editing-background', colorsOf(props).background); } }
   tagHost(id: string) { const item = this.mounted.get(id); return item && !isContainer(item.node) ? item.host : undefined; }
   nativeFrame(id: string) {
     const item = this.mounted.get(id)!, style = getComputedStyle(item.host);
@@ -27,12 +29,12 @@ export class CanvasRenderer {
     const item = this.mounted.get(node.id); if (!item || isContainer(item.node)) return;
     const old = item.node, width = item.element.style.width, height = item.element.style.height;
     try {
-      restoreTags(item.host); item.instance.update(node.props); applyTags(item.host, node.elements);
+      restoreTags(item.host); item.instance.update(node.props); applyTypography(item.host, node.props.typography); applyTags(item.host, node.elements);
       if (scope) { const size = workingSize(node); item.element.style.width = `${size.width}px`; item.element.style.height = `${size.height}px`; }
       scaleNative(item.host, node, scope);
       if (!fitsNativeSurface(measureNative(item.host, node), nativeSurface(node))) throw new Error('标签超出组件边界，请先扩大编辑框，或缩小、移回内部标签');
     } finally {
-      restoreTags(item.host); item.instance.update(old.props); applyTags(item.host, old.elements); item.element.style.width = width; item.element.style.height = height; scaleNative(item.host, old, scope);
+      restoreTags(item.host); item.instance.update(old.props); applyTypography(item.host, old.props.typography); applyTags(item.host, old.elements); item.element.style.width = width; item.element.style.height = height; scaleNative(item.host, old, scope);
     }
   }
   previewElements(id: string, edits: ElementEdit[]) {
@@ -63,15 +65,7 @@ export class CanvasRenderer {
         }
         const current = [...target.children].filter(child => child.classList.contains('node'))[index];
         if (current !== item.element) target.insertBefore(item.element, current ?? null);
-        const auto = !!parent?.layout && parent.layout.mode !== 'free';
-        const stretch = auto && parent!.layout!.align === 'stretch';
-        const minWidth = definition.min[0] * GRID.cell;
-        Object.assign(item.element.style, {
-          position: auto ? 'relative' : 'absolute', left: auto ? 'auto' : `${node.col * GRID.cell}px`, top: auto ? 'auto' : `${node.row * GRID.cell}px`,
-          width: parent?.layout?.mode === 'grid' ? '100%' : stretch && parent?.layout?.direction === 'column' ? 'auto' : `${node.colSpan * GRID.cell}px`,
-          height: stretch ? 'auto' : `${node.rowSpan * GRID.cell}px`, minHeight: stretch ? `${node.rowSpan * GRID.cell}px` : '0',
-          minWidth: auto ? `${minWidth}px` : '0', flex: '0 0 auto', borderRadius: `${shapeOf(node.props).radius}px`,
-        });
+        Object.assign(item.element.style, itemStyles(node, parent, definition.min), { borderRadius: `${shapeOf(node.props).radius}px` });
         if (node.id === scopeRootId) { const size = workingSize(node); item.element.style.width = `${size.width}px`; item.element.style.height = `${size.height}px`; }
         item.element.tabIndex = preview ? -1 : 0;
         item.element.dataset.container = String(isContainer(node));
@@ -83,7 +77,7 @@ export class CanvasRenderer {
         item.host.classList.toggle('container-host', isContainer(node));
         item.host.inert = !preview && !scopeRootId && !isContainer(node);
         item.host.classList.toggle('tag-editable', !!scopeRootId && !isContainer(node));
-        item.node = node; restoreTags(item.host); item.instance.update(node.props); applyTags(item.host, node.elements);
+        item.node = node; restoreTags(item.host); item.instance.update(node.props); applyTypography(item.host, node.props.typography); applyTags(item.host, node.elements);
         if (scopeRootId && !isContainer(node)) item.host.shadowRoot!.querySelectorAll<HTMLElement>('button,input,select,textarea,a,[tabindex]').forEach(control => { control.tabIndex = -1; if (control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement) control.readOnly = true; });
         if (isContainer(node)) {
           const layout = node.layout!;
@@ -92,7 +86,10 @@ export class CanvasRenderer {
           item.host.style.setProperty('--layout-padding', `${layout.padding}px`);
           item.host.style.setProperty('--layout-gap', `${layout.gap}px`);
           const body = item.host.shadowRoot!.querySelector<HTMLElement>('.container-children')!;
-          const minTrack = Math.max(0, ...childrenOf(doc.nodes, node.id).map(child => registry.get(child.type)!.min[0] * GRID.cell));
+          const minTrack = Math.max(0, ...childrenOf(doc.nodes, node.id).map(child => {
+            const span = Math.min(child.constraints?.columnSpan ?? 1, layout.columns);
+            return Math.max(0, (registry.get(child.type)!.min[0] * GRID.cell - layout.gap * (span - 1)) / span);
+          }));
           Object.assign(body.style, { display: layout.mode === 'free' ? 'block' : layout.mode, flexDirection: layout.direction,
             flexWrap: layout.wrap ? 'wrap' : 'nowrap', alignItems: layout.align, justifyContent: layout.justify,
             gridTemplateColumns: `repeat(${layout.columns}, minmax(${minTrack}px,1fr))`, gridAutoRows: 'minmax(min-content,1fr)' });
