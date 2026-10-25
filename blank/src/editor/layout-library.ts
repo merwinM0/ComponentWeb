@@ -1,19 +1,23 @@
 import type { Layouts } from '../core/layouts';
 import { $, toast } from './dom';
+import { setupHomeMotion } from './home-motion';
 
 export interface LayoutActions { busy(): boolean; select(id: string): void; create(name: string): void; home(): void }
 /** 首页只展示完整布局库，不改变当前布局，也不更新修改时间。 */
 export function setupLayoutLibrary(layouts: Layouts, actions: LayoutActions) {
-  const list = $('layout-list'), search = $<HTMLInputElement>('layout-search');
+  const list = $('layout-list'), search = $<HTMLInputElement>('layout-search'), motion = setupHomeMotion();
   const dialog = document.createElement('dialog'); dialog.className = 'editor-dialog'; dialog.setAttribute('aria-labelledby', 'layout-dialog-title');
   dialog.innerHTML = '<form id="layout-form"><h2 id="layout-dialog-title">新建布局</h2><p>创建一个空白布局，保存后进入编辑器。</p><label class="field">布局名称<input id="layout-name" type="text" maxlength="60" required autocomplete="off" autofocus></label><p id="layout-error" role="alert"></p><div class="dialog-actions"><button type="button" data-cancel>取消</button><button type="submit" class="primary">创建并进入</button></div></form>';
   document.body.append(dialog);
   const input = $<HTMLInputElement>('layout-name'), error = $('layout-error');
-  $('new-layout').addEventListener('click', () => {
+  document.querySelectorAll<HTMLButtonElement>('[data-create-layout]').forEach(button => button.addEventListener('click', () => {
     if (actions.busy()) { toast('请先完成当前组件编辑，再新建布局'); return; }
-    input.value = `新布局 ${layouts.items.length + 1}`; error.textContent = ''; dialog.showModal(); input.select();
-  });
+    input.value = `新布局 ${layouts.items.length + 1}`; error.textContent = ''; dialog.showModal(); input.select(); motion.render();
+  }));
+  $('continue-layout').addEventListener('click', () => { try { const latest = layouts.sorted[0]; if (latest) actions.select(latest.id); } catch (cause) { toast((cause as Error).message); } });
+  $('jump-to-layouts').addEventListener('click', () => { $('layouts-heading').scrollIntoView({ block: 'start' }); search.focus({ preventScroll: true }); });
   dialog.querySelector('[data-cancel]')!.addEventListener('click', () => dialog.close());
+  dialog.addEventListener('close', motion.render);
   dialog.querySelector('form')!.addEventListener('submit', event => {
     event.preventDefault(); if (!dialog.querySelector('form')!.reportValidity()) return;
     try { actions.create(input.value); dialog.close(); $('workspace-heading').focus({ preventScroll: true }); toast(`已新建布局“${layouts.current.name}”`); }
@@ -23,9 +27,14 @@ export function setupLayoutLibrary(layouts: Layouts, actions: LayoutActions) {
   const format = new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
   let signature = '';
   function render() {
-    $<HTMLButtonElement>('new-layout').disabled = actions.busy(); $('layout-count').textContent = String(layouts.items.length);
+    const busy = actions.busy(), sorted = layouts.sorted, latest = sorted[0];
+    document.querySelectorAll<HTMLButtonElement>('[data-create-layout]').forEach(button => { button.disabled = busy; });
+    $<HTMLButtonElement>('continue-layout').disabled = busy || !latest;
+    $('hero-latest-name').textContent = latest?.name ?? '暂无布局'; $('hero-latest-name').title = latest?.name ?? '';
+    $('continue-layout').title = latest ? `继续编辑：${latest.name}` : '请先新建一个布局';
+    $('layout-count').textContent = String(layouts.items.length); motion.render();
     $('layout-home-warning').textContent = layouts.warning; $('layout-home-warning').hidden = !layouts.warning;
-    const query = search.value.trim().toLowerCase(), filtered = layouts.sorted.filter(item => item.name.toLowerCase().includes(query));
+    const query = search.value.trim().toLowerCase(), filtered = sorted.filter(item => item.name.toLowerCase().includes(query));
     $('layout-results').textContent = query ? `${filtered.length} 个匹配布局 · 最近修改优先` : `${layouts.items.length} 个布局 · 最近修改优先`;
     $('layout-empty').hidden = !!filtered.length;
     const next = JSON.stringify([query, layouts.items.map(item => [item.id, item.name, item.updatedAt, item.document.nodes.length])]);
@@ -37,7 +46,7 @@ export function setupLayoutLibrary(layouts: Layouts, actions: LayoutActions) {
       const heading = document.createElement('span'); heading.className = 'layout-item-heading';
       const icon = document.createElement('span'); icon.className = 'layout-icon'; icon.textContent = '▦'; icon.setAttribute('aria-hidden', 'true');
       const name = document.createElement('strong'); name.textContent = item.name; heading.append(icon, name);
-      if (item.id === layouts.sorted[0]?.id) { const latest = document.createElement('span'); latest.className = 'layout-latest'; latest.textContent = '最近修改'; heading.append(latest); }
+      if (item.id === latest?.id) { const latest = document.createElement('span'); latest.className = 'layout-latest'; latest.textContent = '最近修改'; heading.append(latest); }
       const detail = document.createElement('small'); detail.textContent = `${item.document.nodes.length} 个组件`;
       const time = document.createElement('time'); time.dateTime = item.updatedAt; time.textContent = format.format(new Date(item.updatedAt));
       const open = document.createElement('span'); open.className = 'layout-open'; open.textContent = '↗'; open.setAttribute('aria-hidden', 'true');

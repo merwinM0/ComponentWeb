@@ -1,10 +1,10 @@
 /* 首页沿用工作台的深色、浅蓝与紧凑密度；布局列表不与组件素材混排。 */
-.layout-home { max-width:1120px;margin:0 auto;padding:40px 32px;min-height:calc(100dvh - 72px); }
+.layout-home { max-width:1120px;margin:0 auto;padding:24px 32px 40px;min-height:calc(100dvh - 72px); }
 .home-location { margin-left:auto;color:var(--muted);font-size:12px; }
-.home-heading { display:flex;align-items:center;justify-content:space-between;gap:24px;margin-bottom:32px; }
-.home-heading h1 { font-size:24px;font-weight:600;display:flex;align-items:center;gap:12px; }
+.home-heading { display:flex;align-items:center;justify-content:space-between;gap:24px;margin-bottom:16px; }
+.home-heading h2 { font-size:18px;font-weight:600;display:flex;align-items:center;gap:12px;margin:0; }
 #home-heading:focus { outline:none; }
-.home-heading p { margin:12px 0 0;color:var(--muted);line-height:1.8;font-size:12px; }
+.home-heading p { margin:8px 0 0;color:var(--muted);line-height:1.8;font-size:11px; }
 .home-heading > button { flex-shrink:0;border-radius:2px;font-size:12px;padding:10px 16px; }
 .home-warning { color:var(--danger);border:1px solid var(--border);padding:12px;line-height:1.8; }
 .home-list-toolbar { display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px; }
@@ -47,7 +47,7 @@
   #layout-switcher { max-width:100%; }
   .layout-home { padding:24px 16px;min-height:calc(100dvh - 64px); }
   .home-heading { align-items:flex-start;gap:16px;margin-bottom:24px; }
-  .home-heading h1 { font-size:22px; }
+  .home-heading h2 { font-size:18px; }
   .home-heading p { max-width:280px; }
   .home-list-header,.layout-item { grid-template-columns:minmax(0,1fr) 60px 120px 20px;gap:12px; }
   .layout-latest { display:none; }
@@ -55,7 +55,7 @@
   #workspace-heading { max-width:120px; }
 }
 @media(max-width:480px) {
-  .home-heading { flex-wrap:wrap; }.home-heading > button { width:100%; }
+  .home-heading { gap:12px; }.home-heading > button { padding:8px 10px;min-height:36px; }.home-heading p { display:none; }
   .home-list-toolbar { align-items:stretch;flex-direction:column; }.home-list-toolbar .search { width:100%; }
   .home-list-header { display:none; }
   .layout-item { grid-template-columns:minmax(0,1fr) 24px;gap:8px 12px;padding:16px 8px; }
