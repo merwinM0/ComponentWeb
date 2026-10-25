@@ -1,4 +1,5 @@
 import type { Page } from 'playwright';
+import { gotoEditor } from './layout-test-helpers';
 import { GRID, FINE_GRID } from '../blank/src/core/grid';
 import { STORAGE_KEY } from '../blank/src/core/store';
 const assert = (value: unknown, message: string) => { if (!value) throw new Error(message); };
@@ -8,7 +9,7 @@ export async function checkFineGrid(source: Page) {
     const legacy = { schemaVersion: 2, grid: FINE_GRID, nodes: [{ id: 'legacy-card', type: 'content.card', col: 10, row: 9, colSpan: 37, rowSpan: 24,
       props: { title: '旧布局保持精确', description: '8px 旧坐标不会因 12px 新网格而被舍入。', accent: '#8bd5ff', radius: 16, borderWidth: 2, borderStyle: 'dashed' } }] };
     await context.addInitScript(({ key, doc }) => { if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify(doc)); }, { key: STORAGE_KEY, doc: legacy });
-    const page = await context.newPage(); const errors: string[] = []; page.on('pageerror', error => errors.push(error.message)); await page.goto(source.url());
+    const page = await context.newPage(); const errors: string[] = []; page.on('pageerror', error => errors.push(error.message)); await gotoEditor(page, source.url());
     const card = page.locator('.node[data-id="legacy-card"]'); await card.waitFor();
     assert(await card.evaluate(element => element.style.left === '80px' && element.style.top === '72px' && element.style.width === '296px' && element.style.height === '192px'), '8px 旧布局迁移不改变像素几何');
     assert(await card.locator('article').evaluate(element => getComputedStyle(element).borderTopLeftRadius) === '16px', '迁移保留圆角');

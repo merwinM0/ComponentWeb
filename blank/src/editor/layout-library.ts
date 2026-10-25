@@ -1,23 +1,12 @@
 import type { Layouts } from '../core/layouts';
 import { $, toast } from './dom';
 
-interface LayoutActions { busy(): boolean; select(id: string): void; create(name: string): void }
-/** 只由用户切换库视图；保存、创建和加载布局不会自动切换回组件库。 */
+export interface LayoutActions { busy(): boolean; select(id: string): void; create(name: string): void; home(): void }
+/** 首页只展示完整布局库，不改变当前布局，也不更新修改时间。 */
 export function setupLayoutLibrary(layouts: Layouts, actions: LayoutActions) {
-  const components = $<HTMLDetailsElement>('component-library'), library = $<HTMLDetailsElement>('layout-library'), list = $('layout-list');
-  function toggle(showLayouts: boolean, event: Event) {
-    event.preventDefault(); event.stopPropagation();
-    components.hidden = showLayouts; library.hidden = !showLayouts;
-    $('show-layouts').hidden = showLayouts; $('show-components').hidden = !showLayouts;
-    (showLayouts ? library : components).open = true;
-    document.querySelector('.library')!.setAttribute('aria-label', showLayouts ? '布局库' : '组件库');
-    $(showLayouts ? 'show-components' : 'show-layouts').focus({ preventScroll: true });
-  }
-  $('show-layouts').addEventListener('click', event => toggle(true, event));
-  $('show-components').addEventListener('click', event => toggle(false, event));
-
+  const list = $('layout-list'), search = $<HTMLInputElement>('layout-search');
   const dialog = document.createElement('dialog'); dialog.className = 'editor-dialog'; dialog.setAttribute('aria-labelledby', 'layout-dialog-title');
-  dialog.innerHTML = '<form id="layout-form"><h2 id="layout-dialog-title">新建布局</h2><p>创建一个空白布局，当前布局会先保存。</p><label class="field">布局名称<input id="layout-name" type="text" maxlength="60" required autocomplete="off" autofocus></label><p id="layout-error" role="alert"></p><div class="dialog-actions"><button type="button" data-cancel>取消</button><button type="submit" class="primary">创建布局</button></div></form>';
+  dialog.innerHTML = '<form id="layout-form"><h2 id="layout-dialog-title">新建布局</h2><p>创建一个空白布局，保存后进入编辑器。</p><label class="field">布局名称<input id="layout-name" type="text" maxlength="60" required autocomplete="off" autofocus></label><p id="layout-error" role="alert"></p><div class="dialog-actions"><button type="button" data-cancel>取消</button><button type="submit" class="primary">创建并进入</button></div></form>';
   document.body.append(dialog);
   const input = $<HTMLInputElement>('layout-name'), error = $('layout-error');
   $('new-layout').addEventListener('click', () => {
@@ -27,32 +16,35 @@ export function setupLayoutLibrary(layouts: Layouts, actions: LayoutActions) {
   dialog.querySelector('[data-cancel]')!.addEventListener('click', () => dialog.close());
   dialog.querySelector('form')!.addEventListener('submit', event => {
     event.preventDefault(); if (!dialog.querySelector('form')!.reportValidity()) return;
-    try { actions.create(input.value); dialog.close(); list.querySelector<HTMLButtonElement>('[aria-current="true"]')?.focus({ preventScroll: true }); toast(`已新建布局“${layouts.current.name}”`); }
+    try { actions.create(input.value); dialog.close(); $('workspace-heading').focus({ preventScroll: true }); toast(`已新建布局“${layouts.current.name}”`); }
     catch (cause) { error.textContent = (cause as Error).message; }
   });
 
-  const format = new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
+  const format = new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
   let signature = '';
   function render() {
-    const busy = actions.busy();
-    $<HTMLButtonElement>('new-layout').disabled = busy;
-    $('layout-count').textContent = String(layouts.items.length);
-    $('layout-library-note').textContent = busy ? '正在编辑组件，请完成编辑后再切换或新建布局。' : '按最近修改排列，打开工作台时恢复最近修改的布局。';
-    const next = JSON.stringify([layouts.currentId, busy, layouts.items.map(item => [item.id, item.name, item.updatedAt, item.document.nodes.length])]);
+    $<HTMLButtonElement>('new-layout').disabled = actions.busy(); $('layout-count').textContent = String(layouts.items.length);
+    $('layout-home-warning').textContent = layouts.warning; $('layout-home-warning').hidden = !layouts.warning;
+    const query = search.value.trim().toLowerCase(), filtered = layouts.sorted.filter(item => item.name.toLowerCase().includes(query));
+    $('layout-results').textContent = query ? `${filtered.length} 个匹配布局 · 最近修改优先` : `${layouts.items.length} 个布局 · 最近修改优先`;
+    $('layout-empty').hidden = !!filtered.length;
+    const next = JSON.stringify([query, layouts.items.map(item => [item.id, item.name, item.updatedAt, item.document.nodes.length])]);
     if (signature === next) return; signature = next;
-    const focused = list.contains(document.activeElement) ? (document.activeElement as HTMLElement).dataset.layoutId : undefined, scroll = list.scrollTop;
+    const focused = list.contains(document.activeElement) ? (document.activeElement as HTMLElement).dataset.layoutId : undefined;
     list.replaceChildren();
-    for (const item of layouts.sorted) {
-      const button = document.createElement('button'); button.type = 'button'; button.className = 'layout-item'; button.dataset.layoutId = item.id; button.disabled = busy;
+    for (const item of filtered) {
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'layout-item'; button.dataset.layoutId = item.id;
       const heading = document.createElement('span'); heading.className = 'layout-item-heading';
-      const name = document.createElement('strong'); name.textContent = item.name; heading.append(name);
-      if (item.id === layouts.currentId) { button.setAttribute('aria-current', 'true'); const badge = document.createElement('span'); badge.className = 'layout-current'; badge.textContent = '当前'; heading.append(badge); }
-      const detail = document.createElement('small'); detail.textContent = `${item.document.nodes.length} 个组件 · 修改于 ${format.format(new Date(item.updatedAt))}`;
-      button.title = `${item.name} · ${new Date(item.updatedAt).toLocaleString('zh-CN')}`;
-      button.append(heading, detail); button.addEventListener('click', () => { try { actions.select(item.id); } catch (cause) { toast((cause as Error).message); } }); list.append(button);
+      const icon = document.createElement('span'); icon.className = 'layout-icon'; icon.textContent = '▦'; icon.setAttribute('aria-hidden', 'true');
+      const name = document.createElement('strong'); name.textContent = item.name; heading.append(icon, name);
+      if (item.id === layouts.sorted[0]?.id) { const latest = document.createElement('span'); latest.className = 'layout-latest'; latest.textContent = '最近修改'; heading.append(latest); }
+      const detail = document.createElement('small'); detail.textContent = `${item.document.nodes.length} 个组件`;
+      const time = document.createElement('time'); time.dateTime = item.updatedAt; time.textContent = format.format(new Date(item.updatedAt));
+      const open = document.createElement('span'); open.className = 'layout-open'; open.textContent = '↗'; open.setAttribute('aria-hidden', 'true');
+      button.title = `打开 ${item.name}`; button.append(heading, detail, time, open);
+      button.addEventListener('click', () => { try { actions.select(item.id); } catch (cause) { toast((cause as Error).message); } }); list.append(button);
     }
     if (focused) [...list.querySelectorAll<HTMLButtonElement>('.layout-item')].find(button => button.dataset.layoutId === focused)?.focus({ preventScroll: true });
-    list.scrollTop = scroll;
   }
-  layouts.subscribe(render); render(); return { render };
+  search.addEventListener('input', render); layouts.subscribe(render); render(); return { render };
 }

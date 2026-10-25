@@ -37,7 +37,7 @@ export function setupElementEditing(editor: Editor) {
     render();
   };
   document.addEventListener('pointerdown', event => {
-    if (!editor.scopeRootId || editor.preview || event.button !== 0 || event.altKey || event.shiftKey) return;
+    if (!editor.active || !editor.scopeRootId || editor.preview || event.button !== 0 || event.altKey || event.shiftKey) return;
     const host = event.composedPath().find(item => item instanceof HTMLElement && item.classList.contains('tag-editable')) as HTMLElement | undefined;
     const element = event.composedPath().find(item => item instanceof HTMLElement && item.getRootNode() === host?.shadowRoot) as HTMLElement | undefined;
     if (!host || !element) return;

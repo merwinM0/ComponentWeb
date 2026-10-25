@@ -17,7 +17,7 @@ const layouts = new Layouts();
 const store = new StoreRouter(new Store(layouts.current.document));
 const session = new InlineEdit(store);
 const combinations = new Combinations();
-const editor = new Editor(store, session);
+const editor = new Editor(store, session, false);
 const elements = setupElementEditing(editor);
 const dialogs = setupCombinationDialogs(editor, combinations);
 const gestures = setupGestures(editor, combinations);
@@ -48,7 +48,7 @@ $('preview').addEventListener('click', () => { if (session.current) return; canc
 $('zoom').addEventListener('change', event => { cancelInteractions(); editor.setZoom(Number((event.target as HTMLSelectElement).value)); });
 
 document.addEventListener('keydown', event => {
-  if (event.defaultPrevented || document.querySelector('dialog[open]')) return;
+  if (layoutWorkspace.isHome || event.defaultPrevented || document.querySelector('dialog[open]')) return;
   const typing = event.composedPath().some(target => target instanceof HTMLElement && (target.matches('input,textarea,select') || target.isContentEditable));
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's' && !event.shiftKey && session.current && !editor.preview) {
     event.preventDefault(); (document.activeElement as HTMLElement)?.blur(); layoutWorkspace.save(true); return;

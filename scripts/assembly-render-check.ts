@@ -1,4 +1,5 @@
 import type { Page } from 'playwright';
+import { gotoEditor } from './layout-test-helpers';
 import { createNode, initialDocument } from '../blank/src/core/model';
 import { STORAGE_KEY } from '../blank/src/core/store';
 const assert = (value: unknown, message: string) => { if (!value) throw new Error(message); };
@@ -23,7 +24,7 @@ async function checkAssembly(source: Page) {
   await context.addInitScript(({ key, doc }) => { if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify(doc)); }, { key: STORAGE_KEY, doc: { ...initialDocument(), nodes: [root] } });
   const page = await context.newPage(), errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   try {
-    await page.goto(source.url()); await node(page, root.id).click({ button: 'right' }); await page.getByRole('menuitem', { name: '编辑组件', exact: true }).click(); await page.waitForTimeout(100);
+    await gotoEditor(page, source.url()); await node(page, root.id).click({ button: 'right' }); await page.getByRole('menuitem', { name: '编辑组件', exact: true }).click(); await page.waitForTimeout(100);
     await change(page, 'inline-width', '600'); await change(page, 'inline-height', '480');
     const box = (await node(page, root.id).boundingBox())!;
     const button = await drop(page, 'basic.button', box.x + 180, box.y + 168);
@@ -74,7 +75,7 @@ async function checkBackground(source: Page) {
   await context.addInitScript(({ key, doc }) => { if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify(doc)); }, { key: STORAGE_KEY, doc: { ...initialDocument(), nodes: [root] } });
   const page = await context.newPage();
   try {
-    await page.goto(source.url()); await node(page, root.id).click({ button: 'right' }); await page.getByRole('menuitem', { name: '编辑组件', exact: true }).click();
+    await gotoEditor(page, source.url()); await node(page, root.id).click({ button: 'right' }); await page.getByRole('menuitem', { name: '编辑组件', exact: true }).click();
     const tagBefore = (await node(page, root.id).locator('h3').boundingBox())!;
     await change(page, 'inline-width', '600'); await change(page, 'inline-height', '480');
     assert(await node(page, root.id).evaluate(element => getComputedStyle(element).backgroundColor === 'rgb(18, 30, 43)'), '旧偏移组件的背景必须填满整个虚线编辑框');

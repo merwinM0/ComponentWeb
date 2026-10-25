@@ -12,6 +12,7 @@ import { checkNestingDrag } from './nesting-drag-check';
 import { checkInlineEditing } from './inline-edit-check';
 import { checkAssemblyRendering } from './assembly-render-check';
 import { checkLayoutLibrary } from './layout-library-check';
+import { openLatestLayout } from './layout-test-helpers';
 
 const port = 3107;
 const url = `http://127.0.0.1:${port}`;
@@ -27,7 +28,7 @@ async function seed(doc: Document) {
   await page.reload();
   await page.locator('#library-count').filter({ hasText: String(components.length) }).waitFor();
   await page.evaluate(({ key, layoutsKey, doc }) => { localStorage.removeItem(layoutsKey); localStorage.setItem(key, JSON.stringify(doc)); }, { key: STORAGE_KEY, layoutsKey: LAYOUTS_KEY, doc });
-  await page.reload();
+  await page.reload(); await openLatestLayout(page);
   await page.locator('#library-count').filter({ hasText: String(components.length) }).waitFor();
 }
 async function audit(target: Page, label: string) {
@@ -39,7 +40,7 @@ try {
     try { if ((await fetch(url)).ok) break; } catch { /* 等待开发服务器 */ }
     await Bun.sleep(100);
   }
-  await page.goto(url);
+  await page.goto(url); await openLatestLayout(page);
   await page.locator('.node').first().waitFor();
   assert(await page.locator('.node').count() === 4, '初始布局');
   await checkLibraryScroll(page);

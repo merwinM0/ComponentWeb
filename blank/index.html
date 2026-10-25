@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#0b1118">
-  <title>ComponentWeb · 网格组件工作台</title>
+  <title>布局库 · ComponentWeb</title>
   <link rel="stylesheet" href="./src/styles.css">
   <link rel="stylesheet" href="./src/catalogue.css">
   <link rel="stylesheet" href="./src/workbench.css">
@@ -12,15 +12,31 @@
   <link rel="stylesheet" href="./src/layout-library.css">
   <script type="module" src="./src/main.ts"></script>
 </head>
-<body>
+<body class="home-view">
   <header class="topbar">
-    <a class="brand" href="/" aria-label="ComponentWeb 首页"><span class="brand-icon" aria-hidden="true">▦</span><strong>Component<span>Web</span></strong><span class="version">原生版 / 09</span></a>
-    <div class="project"><span class="project-dot"></span><span id="project-name">默认布局</span><span class="slash">/</span><span class="muted">本地布局</span></div>
-    <div class="top-actions"><span id="save-state" class="save-state" role="status">本地工作区</span><button id="preview" aria-pressed="false">▷ 预览</button><button id="save" class="primary">保存布局 <span aria-hidden="true">↗</span></button></div>
+    <a id="home-link" class="brand" href="/" aria-label="ComponentWeb 首页"><span class="brand-icon" aria-hidden="true">▦</span><strong>Component<span>Web</span></strong><span class="version">原生版 / 10</span></a>
+    <span id="home-location" class="home-location">本地布局库</span>
+    <div id="layout-navigation" class="project" hidden>
+      <button id="layout-switcher" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="recent-layout-menu"><span class="project-dot" aria-hidden="true"></span><span id="project-name">默认布局</span><span aria-hidden="true">▾</span></button>
+      <div id="recent-layout-menu" class="layout-menu" role="menu" aria-label="最近修改的布局" hidden>
+        <div id="recent-layout-note" class="layout-menu-heading" role="presentation">最近修改的 5 个布局</div>
+        <div id="recent-layout-list" role="group" aria-label="最近布局"></div>
+        <button id="all-layouts" type="button" role="menuitem">查看全部布局 / 返回首页</button>
+      </div>
+    </div>
+    <div id="editor-actions" class="top-actions" hidden><span id="save-state" class="save-state" role="status">本地工作区</span><button id="preview" aria-pressed="false">▷ 预览</button><button id="save" class="primary">保存布局 <span aria-hidden="true">↗</span></button></div>
   </header>
-  <main class="app-layout">
+  <main id="layout-home" class="layout-home" aria-labelledby="home-heading">
+    <div class="home-heading"><div><h1 id="home-heading" tabindex="-1">布局库 <span id="layout-count" class="badge"></span></h1><p>选择一个布局开始编辑，或创建新的空白布局。</p></div><button id="new-layout" type="button" class="primary">＋ 新建布局</button></div>
+    <p id="layout-home-warning" class="home-warning" role="alert" hidden></p>
+    <div class="home-list-toolbar"><label class="search"><span aria-hidden="true">⌕</span><input id="layout-search" type="search" aria-label="搜索布局" placeholder="搜索布局名称…"></label><span id="layout-results" role="status">按最近修改排序</span></div>
+    <div class="home-list-header" aria-hidden="true"><span>布局名称</span><span>组件</span><span>最近修改</span><span></span></div>
+    <div id="layout-list" class="layout-list" role="region" aria-label="所有布局"></div>
+    <p id="layout-empty" class="layout-empty" hidden>没有找到布局，试试其他名称，或新建一个布局。</p>
+    <p class="layout-storage-note">布局仅保存在当前浏览器。进入编辑器后，点击导航栏的布局名称可切换最近修改的 5 个布局。</p>
+  </main>
+  <main id="editor-page" class="app-layout" hidden inert>
     <aside class="library panel" aria-label="组件库">
-      <div class="library-switcher"><button id="show-layouts" type="button" class="library-toggle" aria-controls="layout-library" aria-label="切换到布局库">⇄ 布局库</button><button id="show-components" type="button" class="library-toggle" aria-controls="component-library" aria-label="切换到组件库" hidden>⇄ 组件库</button></div>
       <details id="component-library" open class="panel-details"><summary><span class="library-title">组件库 <span id="library-count" class="badge"></span></span></summary>
         <div class="panel-intro">小组件，搭出大想法。</div>
         <label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="搜索组件、HTML 标签…" aria-label="搜索组件"></label>
@@ -31,14 +47,7 @@
         <div id="component-list" class="component-list" tabindex="0" role="region" aria-label="可滚动的组件列表"></div>
         <div class="library-note"><span aria-hidden="true">⊞</span><div><strong>拖入，即刻开始</strong><p>按网格自由组合，每一处都刚刚好。也可以点击添加。</p></div></div>
       </details>
-      <details id="layout-library" open class="panel-details" hidden>
-        <summary><span class="library-title">布局库 <span id="layout-count" class="badge"></span></span></summary>
-        <p id="layout-library-note" class="panel-intro">按最近修改排列，打开工作台时恢复最近修改的布局。</p>
-        <button id="new-layout" type="button" class="new-layout">＋ 新建布局</button>
-        <div id="layout-list" class="layout-list" tabindex="0" role="region" aria-label="已保存的布局"></div>
-        <p class="layout-storage-note">保存布局会更新当前这一份。所有布局仅保存在当前浏览器。</p>
-      </details>
-      <div class="library-footer"><span class="status-dot"></span> 本地运行，无需登录 <span>v0.9</span></div>
+      <div class="library-footer"><span class="status-dot"></span> 本地运行，无需登录 <span>v0.10</span></div>
     </aside>
     <section class="workspace" aria-label="布局工作区">
       <div class="workspace-toolbar"><div class="workspace-title"><span class="status-dot"></span><h1 id="workspace-heading" tabindex="-1">工作区</h1><span class="label-tag">自由构建 / 网格约束</span></div><div class="history"><button id="undo" aria-label="撤销" title="撤销 Ctrl / Cmd + Z">↶</button><button id="redo" aria-label="重做" title="重做 Ctrl / Cmd + Shift + Z">↷</button><span class="divider"></span><label class="zoom-label">缩放 <select id="zoom" aria-label="画布缩放"><option value="0.5">50%</option><option value="0.75">75%</option><option value="1" selected>100%</option><option value="1.25">125%</option></select></label></div></div>
@@ -66,7 +75,7 @@
     </section>
     <aside class="inspector panel" aria-label="属性面板"><details open class="panel-details"><summary>属性面板 <span class="tiny-label">INSPECTOR</span></summary><div id="inspector-content"></div></details><div class="inspector-note">布局由网格定义<br>细节由你决定 <span>↗</span></div></aside>
   </main>
-  <footer class="statusbar"><span><span class="status-dot"></span> <span id="mode-label">编辑模式</span> <span class="separator">/</span> <span id="node-count">4 个组件</span></span><span id="selection-status">未选择组件</span><span>BUN + HTML + CSS + TS</span></footer>
+  <footer id="editor-status" class="statusbar" hidden><span><span class="status-dot"></span> <span id="mode-label">编辑模式</span> <span class="separator">/</span> <span id="node-count">4 个组件</span></span><span id="selection-status">未选择组件</span><span>BUN + HTML + CSS + TS</span></footer>
   <div id="toast" role="status" aria-live="polite" hidden></div>
 </body>
 </html>

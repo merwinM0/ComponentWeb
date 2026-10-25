@@ -1,4 +1,5 @@
 import type { Page } from 'playwright';
+import { gotoEditor } from './layout-test-helpers';
 import { createNode, initialDocument } from '../blank/src/core/model';
 import { STORAGE_KEY } from '../blank/src/core/store';
 const assert = (value: unknown, message: string) => { if (!value) throw new Error(message); };
@@ -8,7 +9,7 @@ export async function checkNestingDrag(source: Page) {
   const button = { ...createNode('basic.button'), id: 'drag-button', col: 40, row: 6 };
   await context.addInitScript(({ key, doc }) => { if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify(doc)); }, { key: STORAGE_KEY, doc: { ...initialDocument(), nodes: [container, button] } });
   try {
-    const page = await context.newPage(); await page.goto(source.url());
+    const page = await context.newPage(); await gotoEditor(page, source.url());
     const canvas = page.locator('#canvas');
     const pick = async (id: string) => page.locator(`.layer-item[data-id="${id}"]`).click();
     const child = page.locator('[data-id="drag-button"].node'); const parent = page.locator('[data-id="drag-container"].node');

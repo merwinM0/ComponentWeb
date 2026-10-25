@@ -20,7 +20,7 @@ export function parseLayouts(raw: string): SavedLayout[] {
   });
 }
 
-/** 布局库是持久化来源；当前选择只存在内存，启动始终打开最近修改的一份。 */
+/** 布局库是持久化来源；默认候选为最近修改的一份，首页和显式路由决定实际进入的布局。 */
 export class Layouts {
   items: SavedLayout[] = [];
   currentId = '';
@@ -48,6 +48,7 @@ export class Layouts {
   }
   get current() { return this.items.find(item => item.id === this.currentId)!; }
   get sorted() { return [...this.items].sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt)); }
+  get recent() { return this.sorted.slice(0, 5); }
   subscribe(listener: () => void) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
   private notify() { this.listeners.forEach(listener => listener()); }
   private timestamp() { return new Date(Math.max(Date.now(), ...this.items.map(item => Date.parse(item.updatedAt) + 1))).toISOString(); }

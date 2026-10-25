@@ -17,6 +17,7 @@ export { $, toast } from './dom';
 export class Editor {
   selectedIds = new Set<string>();
   preview = false;
+  active = true;
   zoom = 1;
   readonly canvas = $('canvas');
   readonly ghost = $('ghost');
@@ -34,7 +35,8 @@ export class Editor {
   private lastScope: string | null = null;
   private lastContext: object | null = null;
   private colorPreviewId: string | null = null;
-  constructor(readonly store: StorePort, readonly session?: InlineEdit) {
+  constructor(readonly store: StorePort, readonly session?: InlineEdit, active = true) {
+    this.active = active;
     this.contextRenderer = new CanvasRenderer($('context-layer'), () => {});
     this.renderer = new CanvasRenderer(this.canvas, id => { if (!this.preview && !this.selectedIds.has(id)) this.select(id); });
     Object.assign(this.canvas.style, { width: `${CANVAS.width}px`, height: `${CANVAS.height}px` });
@@ -57,7 +59,7 @@ export class Editor {
   get selection() { return topSelection(this.store.doc.nodes, this.selectedIds); }
   get node() { return this.selectedIds.size === 1 ? this.store.doc.nodes.find(node => node.id === this.selected) : undefined; }
   select(id: string | null, toggle = false) {
-    if (this.preview) return;
+    if (!this.active || this.preview) return;
     const ids = toggle ? new Set(this.selectedIds) : new Set<string>();
     if (id) { if (toggle && ids.has(id)) ids.delete(id); else ids.add(id); }
     this.setSelection(ids);
@@ -78,6 +80,7 @@ export class Editor {
   previewColors(id: string, props: Props) { this.colorPreviewId = id; this.renderer.preview(id, props);  }
   applyAppearance(appearance: Document['appearance']) { this.canvas.style.setProperty('--canvas-background', appearance.background); this.canvas.style.setProperty('--canvas-grid', appearance.grid); }
   render() {
+    if (!this.active) return;
     const context = this.store.contextToken ?? this.store;
     if (this.lastScope !== this.scopeRootId || this.lastContext !== context) { this.renderer.clear(); this.selectedTag = null; this.lastScope = this.scopeRootId; this.lastContext = context; }
     const size = this.pageSize; Object.assign(this.canvas.style, { width: `${size.width}px`, height: `${size.height}px` });
@@ -96,7 +99,7 @@ export class Editor {
   prepareNodes(nodes: Placement[]) { return this.scopeRootId ? moveEditingRegion(nodes, this.store.doc.nodes, this.scopeRootId) : nodes; }
   resizeEditing(width: number, height: number) { return this.attempt(() => this.store.doc.nodes.map(node => node.id === this.scopeRootId ? resizeEditingNode(node, width, height) : node)); }
   commit(nodes: Placement[], ids?: Iterable<string>) {
-    if (this.preview) return false;
+    if (!this.active || this.preview) return false;
     try {
       nodes = this.prepareNodes(nodes);
       const pageError = this.pageError(nodes); if (pageError) throw new Error(pageError);

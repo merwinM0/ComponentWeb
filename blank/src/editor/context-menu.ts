@@ -9,7 +9,7 @@ export function setupContextMenu(editor: Editor, combinations: Combinations, dia
   let returnFocus: HTMLElement | null = null;
   function close(restore = false) { menu.hidden = true; if (restore && returnFocus?.isConnected) returnFocus.focus({ preventScroll: true }); }
   function show(x: number, y: number, target?: HTMLElement) {
-    if (document.querySelector('dialog[open]')) return;
+    if (!editor.active || document.querySelector('dialog[open]')) return;
     cancelGesture(); returnFocus = document.activeElement as HTMLElement;
     const tile = target?.closest<HTMLElement>('.component-tile');
     const node = target ? editor.hitNode(target) : editor.node;
@@ -45,7 +45,7 @@ export function setupContextMenu(editor: Editor, combinations: Combinations, dia
     if (event.button === 2 && !editor.preview && editor.canvas.contains(target) && target.closest('.node') && !nativeInput(event)) event.preventDefault();
   }, true);
   document.addEventListener('contextmenu', event => {
-    if (nativeInput(event) || document.querySelector('dialog[open]')) return;
+    if (!editor.active || (event.target as HTMLElement).closest('.topbar') || nativeInput(event) || document.querySelector('dialog[open]')) return;
     event.preventDefault(); show(event.clientX, event.clientY, event.target as HTMLElement);
   });
   menu.addEventListener('keydown', event => {
@@ -59,8 +59,8 @@ export function setupContextMenu(editor: Editor, combinations: Combinations, dia
   window.addEventListener('resize', () => close()); window.addEventListener('blur', () => close());
   $('more-actions').addEventListener('click', () => { const rect = $('more-actions').getBoundingClientRect(); show(rect.left, rect.bottom + 4); });
   document.addEventListener('keydown', event => {
-    if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
-      if (event.composedPath().some(target => target instanceof HTMLElement && target.matches('input,textarea,select'))) return;
+    if (editor.active && (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10'))) {
+      if ((event.target as HTMLElement).closest('.topbar') || event.composedPath().some(target => target instanceof HTMLElement && target.matches('input,textarea,select'))) return;
       event.preventDefault(); const target = editor.selected ? editor.renderer.element(editor.selected) : $('viewport'); const rect = target!.getBoundingClientRect(); show(rect.left + 20, rect.top + 20, target);
     }
   });

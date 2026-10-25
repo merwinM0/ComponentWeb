@@ -1,4 +1,5 @@
 import type { Page } from 'playwright';
+import { gotoEditor } from './layout-test-helpers';
 
 function assert(value: unknown, message: string): asserts value {
   if (!value) throw new Error(message);
@@ -47,7 +48,7 @@ export async function checkLibraryScroll(page: Page) {
   const touchContext = await page.context().browser()!.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   try {
     const touchPage = await touchContext.newPage();
-    await touchPage.goto(page.url());
+    await gotoEditor(touchPage, page.url());
     const touchList = touchPage.locator('#component-list');
     await touchList.scrollIntoViewIfNeeded();
     const box = (await touchList.boundingBox())!;

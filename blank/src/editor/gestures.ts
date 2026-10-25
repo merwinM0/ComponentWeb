@@ -30,7 +30,7 @@ export function setupGestures(editor: Editor, combinations: Combinations) {
     return null;
   }
   document.addEventListener('pointerdown', event => {
-    if (editor.preview || event.button !== 0 || state) return;
+    if (!editor.active || editor.preview || event.button !== 0 || state) return;
     const target = event.target as HTMLElement;
     if (target.closest('.component-tile button,.node-label button')) return;
     const tile = target.closest<HTMLElement>('.component-tile');

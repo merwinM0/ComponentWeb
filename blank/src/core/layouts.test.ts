@@ -42,13 +42,26 @@ describe('独立布局库', () => {
     expect(layouts.current.createdAt).toBe(next.createdAt); expect(layouts.current.updatedAt > next.updatedAt).toBe(true);
     doc.nodes[0]!.props.title = '外部改动'; expect(layouts.current.document.nodes[0]!.props.title).not.toBe('外部改动');
   });
-  test('启动选择最近修改的布局，而不是上次浏览的布局', () => {
+  test('默认候选选择最近修改的布局，而不是上次浏览的布局', () => {
     const storage = memory(), layouts = new Layouts(storage), first = layouts.current, next = layouts.create('最新');
     const updated = next.updatedAt; layouts.select(first.id);
     expect(layouts.currentId).toBe(first.id); expect(layouts.items.find(item => item.id === next.id)!.updatedAt).toBe(updated);
     expect(new Layouts(storage).current.id).toBe(next.id);
     layouts.save(first.id, first.document); expect(new Layouts(storage).current.id).toBe(first.id);
     expect(layouts.sorted[0]!.id).toBe(first.id);
+  });
+  test('最近布局只取按修改时间排序的前五份，不因浏览而改变', () => {
+    const layouts = new Layouts(memory()), first = layouts.current;
+    for (let i = 0; i < 7; i++) layouts.create(`布局 ${i}`);
+    const before = structuredClone(layouts.items), recent = layouts.recent.map(item => item.id);
+    expect(recent).toHaveLength(5); expect(recent).toEqual(layouts.sorted.slice(0, 5).map(item => item.id)); expect(recent).not.toContain(first.id);
+    layouts.select(first.id); expect(layouts.recent.map(item => item.id)).toEqual(recent); expect(layouts.items).toEqual(before);
+    layouts.save(first.id, first.document); expect(layouts.recent).toHaveLength(5); expect(layouts.recent[0]!.id).toBe(first.id);
+  });
+  test('不足五份时显示全部最近布局，读取列表不会改变当前候选', () => {
+    const layouts = new Layouts(memory()); expect(layouts.recent).toHaveLength(1);
+    const second = layouts.create('第二份'); layouts.select(layouts.items[0]!.id); const current = layouts.currentId;
+    expect(layouts.recent.map(item => item.id)).toEqual([second.id, current]); expect(layouts.currentId).toBe(current);
   });
   test('同一毫秒连续修改也按先后排序，手动保存当前布局可成为最新', () => {
     const layouts = new Layouts(memory()), first = layouts.current, next = layouts.create('第二份');

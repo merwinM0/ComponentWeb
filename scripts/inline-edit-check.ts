@@ -1,4 +1,5 @@
 import type { Page } from 'playwright';
+import { gotoEditor } from './layout-test-helpers';
 import AxeBuilder from '@axe-core/playwright';
 import { createNode, initialDocument } from '../blank/src/core/model';
 import { STORAGE_KEY } from '../blank/src/core/store';
@@ -26,7 +27,7 @@ async function checkNative(source: Page) {
   await context.addInitScript(({ key, doc }) => { if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify(doc)); }, { key: STORAGE_KEY, doc: { ...initialDocument(), nodes: [card, other] } });
   const page = await context.newPage(), errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   try {
-    await page.goto(source.url()); await node(page, card.id).waitFor(); await page.waitForTimeout(400); const original = await saved(page), url = page.url();
+    await gotoEditor(page, source.url()); await node(page, card.id).waitFor(); await page.waitForTimeout(400); const original = await saved(page), url = page.url();
     assert(await page.locator('.canvas-heading,#designer-panel,#edit-component,.edit-design-button').count() === 0, '无旧标题和非右键编辑入口');
     await node(page, card.id).dblclick(); assert(await page.locator('#inline-editor').isHidden(), '双击不进入编辑、不新增层级');
     await node(page, card.id).click({ button: 'right' }); await page.getByRole('menuitem', { name: '编辑组件', exact: true }).click();
@@ -93,7 +94,7 @@ async function checkNested(source: Page) {
   await context.addInitScript(({ key, doc }) => { if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify(doc)); }, { key: STORAGE_KEY, doc: { ...initialDocument(), nodes: [root, inner, leaf, other] } });
   const page = await context.newPage(), errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   try {
-    await page.goto(source.url()); await node(page, root.id).waitFor(); await page.waitForTimeout(400); const original = await saved(page);
+    await gotoEditor(page, source.url()); await node(page, root.id).waitFor(); await page.waitForTimeout(400); const original = await saved(page);
     await size(page, leaf.id, 42, 12, '原有多层比例'); await edit(page, root.id); await size(page, leaf.id, 84, 24, '当前层解除外层缩放');
     await change(page, 'inline-width', '1008'); await size(page, root.id, 1008, 720, '布局容器也能显式改变编辑框'); await change(page, 'inline-width', '960');
     await edit(page, inner.id); await edit(page, leaf.id); assert(await page.locator('#edit-breadcrumbs button').count() === 4, '嵌套统一通过右键逐层进入');
@@ -118,7 +119,7 @@ async function checkLegacyOffset(source: Page) {
   await context.addInitScript(({ key, doc }) => { if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify(doc)); }, { key: STORAGE_KEY, doc: { ...initialDocument(), nodes: [card] } });
   const page = await context.newPage();
   try {
-    await page.goto(source.url()); await node(page, card.id).waitFor(); await edit(page, card.id);
+    await gotoEditor(page, source.url()); await node(page, card.id).waitFor(); await edit(page, card.id);
     const before = (await node(page, card.id).locator('h3').boundingBox())!;
     await change(page, 'inline-width', '600'); await change(page, 'inline-height', '480'); await size(page, card.id, 600, 480, '旧版偏移组件同样能先扩大编辑框');
     const after = (await node(page, card.id).locator('h3').boundingBox())!;

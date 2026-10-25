@@ -1,4 +1,5 @@
 import type { Page } from 'playwright';
+import { gotoEditor } from './layout-test-helpers';
 import AxeBuilder from '@axe-core/playwright';
 import { createNode, initialDocument } from '../blank/src/core/model';
 import { STORAGE_KEY } from '../blank/src/core/store';
@@ -13,7 +14,7 @@ export async function checkWorkbench(source: Page) {
   await context.addInitScript(({ key, doc }) => { if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify(doc)); }, { key: STORAGE_KEY, doc });
   const page = await context.newPage(); const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   try {
-    await page.goto(source.url()); await page.locator('.node').first().waitFor();
+    await gotoEditor(page, source.url()); await page.locator('.node').first().waitFor();
     const node = (id: string) => page.locator(`.node[data-id="${id}"]`);
     const pick = async (id: string, shift = false) => { await page.locator(`.layer-item[data-id="${id}"]`).click({ modifiers: shift ? ['Shift'] : [] }); };
     const data = async () => { await page.locator('#save').click(); return page.evaluate(key => JSON.parse(localStorage.getItem(key)!), STORAGE_KEY); };
