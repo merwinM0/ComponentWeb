@@ -111,7 +111,7 @@ export function setupGestures(editor: Editor, combinations: Combinations) {
     const inside = event.clientX >= viewport.left && event.clientX <= viewport.right && event.clientY >= viewport.top && event.clientY <= viewport.bottom;
     const inPage = p.x >= 0 && p.y >= 0 && p.x * GRID.cell <= editor.pageSize.width && p.y * GRID.cell <= editor.pageSize.height;
     nodes = editor.prepareNodes(nodes);
-    s.candidate = nodes; s.valid = inside && inPage && !editor.pageError(nodes) && !validateTree(nodes, !!editor.scopeRootId);
+    s.candidate = nodes; s.valid = inside && inPage && !editor.pageError(nodes) && !validateTree(nodes, !!editor.scopeRootId, editor.store.doc.grid);
     if (s.valid && s.kind === 'resize' && s.roots[0].id === editor.scopeRootId && !isContainer(s.roots[0])) { try { editor.renderer.checkNative(updates.get(s.roots[0].id)!, true); } catch { s.valid = false; } }
     const preview = bounds([...updates.values()].map(node => ({ ...node, col: node.col * origin.scaleX + origin.col, row: node.row * origin.scaleY + origin.row,
       colSpan: (node.id === editor.scopeRootId ? workingSize(node).width / GRID.cell : node.colSpan) * origin.scaleX, rowSpan: (node.id === editor.scopeRootId ? workingSize(node).height / GRID.cell : node.rowSpan) * origin.scaleY })));

@@ -125,7 +125,7 @@ async function checkLegacyOffset(source: Page) {
     const after = (await node(page, card.id).locator('h3').boundingBox())!;
     assert(Math.abs(before.x - after.x) < 1 && Math.abs(before.width - after.width) < 1, '扩大旧编辑框不改原标签位置或宽度');
     await change(page, 'prop-title', '旧组件也可修改'); assert(await node(page, card.id).locator('h3').textContent() === '旧组件也可修改', '旧组件原生属性仍可修改');
-    await page.locator('#finish-edit').click(); await page.locator('#save').click(); await page.reload(); await node(page, card.id).waitFor(); await edit(page, card.id);
+    await page.locator('#finish-edit').click(); await page.locator('#save').click(); await page.reload(); await node(page, card.id).waitFor(); await page.locator('#zoom').selectOption('1'); await edit(page, card.id);
     await size(page, card.id, 600, 480, '旧组件编辑尺寸与内容修改持久化'); await page.locator('#finish-edit').click();
   } finally { await context.close(); }
 }

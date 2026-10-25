@@ -14,7 +14,7 @@ export async function checkFineGrid(source: Page) {
     assert(await card.evaluate(element => element.style.left === '80px' && element.style.top === '72px' && element.style.width === '296px' && element.style.height === '192px'), '8px 旧布局迁移不改变像素几何');
     assert(await card.locator('article').evaluate(element => getComputedStyle(element).borderTopLeftRadius) === '16px', '迁移保留圆角');
     assert(await page.locator('#grid-cell-label').textContent() === '12 px 网格', '网格标识为 12px');
-    assert(await page.locator('#canvas').evaluate((element, size) => element.style.width === `${size.width}px` && element.style.height === `${size.height}px`, CANVAS), '画布等比扩大到 3840×2880，旧组件尺寸不变');
+    assert(await page.locator('#canvas').evaluate((element, size) => element.style.width === `${size.width}px` && element.style.height === `${size.height}px`, CANVAS), '画布为 16:9 基准，旧组件逻辑尺寸不变');
     assert(await page.locator('#canvas').evaluate(element => getComputedStyle(element).backgroundSize.includes('12px 12px')), '实际绘制 12px 网格');
     await card.focus(); await page.keyboard.press('ArrowRight'); assert(await card.evaluate(element => element.style.left) === '92px', '方向键移动 12px，保留原亚网格偏移');
     await page.keyboard.press('Shift+ArrowDown'); assert(await card.evaluate(element => element.style.top) === '132px', 'Shift 方向键移动 60px');
@@ -34,7 +34,7 @@ export async function checkFineGrid(source: Page) {
     assert(await button.evaluate(element => element.style.left === '0px' && element.style.top === '0px'), '仍然禁止同级重叠');
     await card.click(); await page.locator('#save').click();
     const saved = await page.evaluate(key => JSON.parse(localStorage.getItem(key)!), STORAGE_KEY);
-    assert(saved.schemaVersion === 4 && saved.grid.cell === GRID.cell, '记录为 v4 大画布格式');
+    assert(saved.schemaVersion === 5 && saved.grid.cell === GRID.cell, '记录为 v5 横屏画布格式');
     assert(Math.abs(saved.nodes[0].col * GRID.cell - 92) < 1e-6, '保存精确的亚网格坐标');
     await page.reload(); assert(await card.evaluate(element => element.style.left === '92px' && element.style.width === '308px'), '保存恢复无重复迁移');
     await page.screenshot({ path: '/tmp/componentweb-grid12.png', fullPage: true }); assert(!errors.length, errors.join('; '));

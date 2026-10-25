@@ -1,5 +1,5 @@
 import { createNode, findSpace, type Placement } from './model';
-import { GRID } from './grid';
+import { GRID, type CanvasGrid } from './grid';
 import { bounds, descendants, topSelection } from './tree';
 import { isContainer, type ContainerLayout } from './types';
 
@@ -67,12 +67,12 @@ export function cloneForest(nodes: Placement[], ids: Iterable<string>) {
   const copies = structuredClone(nodes.filter(node => all.has(node.id))).map(node => ({ ...node, id: mapping.get(node.id)!, parentId: node.parentId ? mapping.get(node.parentId) ?? node.parentId : null }));
   return { nodes: copies, roots: roots.map(node => mapping.get(node.id)!) };
 }
-export function placeForest(copies: Placement[], rootIds: string[], existing: Placement[], parentId: string | null, position?: { col: number; row: number }) {
+export function placeForest(copies: Placement[], rootIds: string[], existing: Placement[], parentId: string | null, position?: { col: number; row: number }, grid: CanvasGrid = GRID) {
   const roots = copies.filter(node => rootIds.includes(node.id));
   const box = bounds(roots);
   const probe = { ...roots[0], ...box, parentId, id: '__placement_probe__' };
   // 使用整体包围盒找空位，最终仍会逐个校验真实树。
-  const found = position ? { ...probe, ...position } : findSpace(probe, existing);
+  const found = position ? { ...probe, ...position } : findSpace(probe, existing, grid);
   if (!found) throw new Error('没有足够空间放置组合');
   return copies.map(node => rootIds.includes(node.id) ? { ...node, parentId, col: node.col - box.col + found.col, row: node.row - box.row + found.row } : node);
 }

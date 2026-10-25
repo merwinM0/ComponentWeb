@@ -1,5 +1,5 @@
 import { parseDocument } from './model';
-import { CANVAS, EDIT_SPACE, GRID } from './grid';
+import { CANVAS, EDIT_SPACE, GRID, canvasSize } from './grid';
 import { workingSize, assembleNodes, allowAssembledOverlap } from './assembly';
 import { descendants } from './tree';
 import { cloneForest } from './operations';
@@ -8,7 +8,7 @@ import { StoreRouter } from './store-router';
 import type { Document, Placement } from './types';
 import { editRegionError, regionOf, type EditRegion } from './edit-region';
 
-export interface EditView { selection: string[]; zoom: number; left: number; top: number }
+export interface EditView { selection: string[]; zoom: number; left: number; top: number; fit?: boolean }
 export interface EditFrame {
   id: string; rootId: string; name: string; store: Store; baseline: string; parent: Store; parentView: EditView;
   source: Placement; sourceTree?: string; templateId?: string;
@@ -99,7 +99,7 @@ export class InlineEdit {
     this.onNavigate({ ...frame.parentView, selection: selection ?? frame.parentView.selection });
   }
   get pageSize() {
-    if (!this.current) return CANVAS;
+    if (!this.current) return canvasSize(this.router.doc.grid);
     const sizes = this.router.doc.nodes.filter(node => !node.parentId).map(node => ({ node, size: node.id === this.rootId ? workingSize(node) : { width: node.colSpan * GRID.cell, height: node.rowSpan * GRID.cell } }));
     return { width: Math.min(EDIT_SPACE.width, Math.max(CANVAS.width, ...sizes.map(({ node, size }) => node.col * GRID.cell + size.width + 96))),
       height: Math.min(EDIT_SPACE.height, Math.max(CANVAS.height, ...sizes.map(({ node, size }) => node.row * GRID.cell + size.height + 96))) };

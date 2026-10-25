@@ -9,12 +9,12 @@ import { createNode, findSpace as findNew } from '../core/model';
 import { $, Editor, toast } from './editor';
 
 export function setupInlineEditing(editor: Editor, session: InlineEdit, combinations: Combinations, dialogs: ReturnType<typeof setupCombinationDialogs>, cancel: () => void, refreshLibrary: () => void) {
-  const view = (): EditView => ({ selection: [...editor.selectedIds], zoom: editor.zoom, left: $('viewport').scrollLeft, top: $('viewport').scrollTop });
+  const view = (): EditView => ({ selection: [...editor.selectedIds], zoom: editor.zoom, left: $('viewport').scrollLeft, top: $('viewport').scrollTop, fit: editor.fitView });
   const perform = (action: () => void) => { cancel(); try { action(); $('toast').hidden = true; } catch (error) { toast((error as Error).message); } };
   let restore = 0;
   session.onNavigate = next => {
     $('toast').hidden = true;
-    editor.selectedTag = null; editor.selectedIds = new Set(next.selection); editor.setZoom(next.zoom); $<HTMLSelectElement>('zoom').value = String(next.zoom);
+    editor.selectedTag = null; editor.selectedIds = new Set(next.selection); editor.setZoom(next.zoom, next.fit ?? false);
     editor.render(); refreshLibrary(); cancelAnimationFrame(restore);
     restore = requestAnimationFrame(() => { $('viewport').scrollLeft = next.left; $('viewport').scrollTop = next.top; (editor.selected ? editor.renderer.element(editor.selected) : $('workspace-heading'))?.focus({ preventScroll: true }); });
   };
@@ -41,14 +41,15 @@ export function setupInlineEditing(editor: Editor, session: InlineEdit, combinat
   }
   editor.onEditComponent = id => perform(() => {
     const node = editor.store.doc.nodes.find(node => node.id === id); if (!node) throw new Error('组件不存在');
-    const rect = editor.logicalRect(id), space = editor.origin(node.parentId);
-    session.open(id, view(), rect, { colSpan: rect.colSpan / space.scaleX, rowSpan: rect.rowSpan / space.scaleY });
+    const rect = editor.logicalRect(id), space = editor.origin(node.parentId), native = isContainer(node) ? null : editor.renderer.nativeFrame(id);
+    // 使用未缩放的布局尺寸，避免适应倍率下 DOMRect 浮点误差让 48px 变成 47.999px。
+    session.open(id, view(), rect, { colSpan: native ? native.baseWidth / GRID.cell : rect.colSpan / space.scaleX, rowSpan: native ? native.baseHeight / GRID.cell : rect.rowSpan / space.scaleY });
   });
   editor.onNewComponent = parentId => {
     const node = createNode('layout.container'); node.colSpan = 24; node.rowSpan = 16; node.design = { width: 288, height: 192 }; node.layout!.padding = 0; node.props.borderWidth = 0;
     if (parentId) editor.add(node.type, undefined, parentId);
     else if (editor.scopeRootId) { const target = editor.scopeRoot && isContainer(editor.scopeRoot) ? editor.scopeRootId : null, position = editor.stagingPosition(node, target); if (!position) { toast('容器放不进编辑框，请先扩大组件'); return; } editor.add(node.type, { ...node, parentId: target, ...position }, target); }
-    else { const existing = editor.store.doc.nodes; perform(() => { const placed = findNew(node, existing); if (!placed) throw new Error('没有可用空间，请先腾出位置或进入组件编辑后添加'); editor.add(node.type, placed); }); }
+    else { const existing = editor.store.doc.nodes; perform(() => { const placed = findNew(node, existing, editor.store.doc.grid); if (!placed) throw new Error('没有可用空间，请先腾出位置或进入组件编辑后添加'); editor.add(node.type, placed); }); }
   };
   editor.onAssemble = () => { if (validInputs()) perform(() => { session.assemble(); editor.select(session.rootId); }); };
   editor.onEditSavedCombination = id => perform(() => { const item = combinations.items.find(item => item.id === id); if (!item) throw new Error('组合不存在'); session.openTemplate(item.document, item.id, item.name, view()); });

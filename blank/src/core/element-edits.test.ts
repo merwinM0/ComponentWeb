@@ -3,6 +3,7 @@ import { parseElementEdits, parseSurface } from './element-edits';
 import { createNode, initialDocument, parseDocument, GRID } from './model';
 import { Store } from './store';
 import { cloneForest } from './operations';
+import { EDIT_SPACE } from './grid';
 
 describe('原生标签修改与自动缩放数据', () => {
   test('白名单标签样式往返，不保存任意 HTML、事件或 CSS', () => {
@@ -36,7 +37,8 @@ describe('原生标签修改与自动缩放数据', () => {
     const root = createNode('basic.button'), loose = { ...createNode('html.p'), col: 0, row: 0 };
     const doc = { ...initialDocument(), nodes: [root, loose] };
     expect(() => parseDocument(JSON.stringify(doc))).toThrow('重叠'); expect(parseDocument(JSON.stringify(doc), true).nodes).toHaveLength(2);
-    loose.col = 100; expect(parseDocument(JSON.stringify(doc)).nodes).toHaveLength(2); expect(parseDocument(JSON.stringify(doc), true).nodes).toHaveLength(2);
-    loose.col = GRID.cols; expect(() => parseDocument(JSON.stringify(doc))).toThrow('超出'); expect(() => parseDocument(JSON.stringify(doc), true)).toThrow('超出');
+    loose.col = 82; expect(parseDocument(JSON.stringify(doc)).nodes).toHaveLength(2); expect(parseDocument(JSON.stringify(doc), true).nodes).toHaveLength(2);
+    loose.col = GRID.cols; expect(() => parseDocument(JSON.stringify(doc))).toThrow('超出'); expect(parseDocument(JSON.stringify(doc), true).nodes).toHaveLength(2);
+    loose.col = EDIT_SPACE.width / GRID.cell; expect(() => parseDocument(JSON.stringify(doc), true)).toThrow('超出');
   });
 });

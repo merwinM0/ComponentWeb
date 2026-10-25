@@ -27,7 +27,7 @@ describe('独立布局库', () => {
     const storage = memory(), node = createNode('basic.button');
     const legacy = { ...initialDocument(), schemaVersion: 1, grid: { cols: 40, rows: 30, cell: 24 }, nodes: [{ ...node, col: 2, row: 3, colSpan: 7, rowSpan: 2 }] };
     storage.setItem(STORAGE_KEY, JSON.stringify(legacy));
-    const layouts = new Layouts(storage); expect(layouts.current.document.schemaVersion).toBe(4);
+    const layouts = new Layouts(storage); expect(layouts.current.document.schemaVersion).toBe(5);
     expect(layouts.current.document.nodes[0]).toMatchObject({ id: node.id, col: 4, row: 6, colSpan: 14, rowSpan: 4 });
   });
   test('v3 多布局读为大画布，但浏览不会覆盖原库或改变 ID、时间和节点', () => {
@@ -38,7 +38,7 @@ describe('独立布局库', () => {
     expect(layouts.current).toEqual({ ...item, document: { ...document, grid: GRID } });
     expect(layouts.current.document.nodes).toEqual(document.nodes); expect(storage.getItem(LAYOUTS_KEY)).toBe(raw);
     expect(new Layouts(storage).current.updatedAt).toBe(item.updatedAt);
-    layouts.save(item.id, layouts.current.document); expect(parseLayouts(storage.getItem(LAYOUTS_KEY)!)[0].document.schemaVersion).toBe(4);
+    layouts.save(item.id, layouts.current.document); expect(parseLayouts(storage.getItem(LAYOUTS_KEY)!)[0].document.schemaVersion).toBe(5);
   });
   test('新建为空白布局，名称去首尾空白，不覆盖原布局', () => {
     const storage = memory(), layouts = new Layouts(storage), first = structuredClone(layouts.current);

@@ -1,6 +1,6 @@
 import { initialDocument, parseDocument, type Document } from './model';
 
-// 保留原存储键以发现旧布局；v1 / v2 / v3 文档兼容迁移为 v4。
+// 保留原存储键以发现旧布局；v1～v4 文档兼容迁移为 v5，旧远处内容不裁剪。
 export const STORAGE_KEY = 'componentweb.document.v1';
 
 export interface StorePort {

@@ -1,5 +1,5 @@
 import { registry } from '../components/registry';
-import { GRID, EDIT_SPACE } from './grid';
+import { GRID, EDIT_SPACE, type CanvasGrid } from './grid';
 import { isContainer, type Placement } from './types';
 import { designSize, validDesign } from './design-space';
 
@@ -21,15 +21,15 @@ export function topSelection(nodes: Placement[], ids: Iterable<string>): Placeme
     return true;
   });
 }
-export function contentSize(parent?: Placement) {
-  if (!parent) return { cols: GRID.cols as number, rows: GRID.rows as number };
+export function contentSize(parent?: Placement, grid: CanvasGrid = GRID) {
+  if (!parent) return { cols: grid.cols, rows: grid.rows };
   const border = parent.props.borderStyle === 'none' ? 0 : (parent.props.borderWidth ?? 1);
   const inset = ((parent.layout?.padding ?? 12) + border) * 2 / GRID.cell;
   const size = designSize(parent);
   return { cols: Math.max(0, size.width / GRID.cell - inset), rows: Math.max(0, size.height / GRID.cell - inset) };
 }
 export const overlaps = (a: Placement, b: Placement) => a.col < b.col + b.colSpan - EPS && a.col + a.colSpan > b.col + EPS && a.row < b.row + b.rowSpan - EPS && a.row + a.rowSpan > b.row + EPS;
-export function placementError(node: Placement, nodes: Placement[], draft = false): string | null {
+export function placementError(node: Placement, nodes: Placement[], draft = false, grid: CanvasGrid = GRID): string | null {
   const definition = registry.get(node.type);
   if (!definition || ![node.col, node.row, node.colSpan, node.rowSpan].every(Number.isFinite)) return '组件类型或坐标无效';
   if (node.colSpan < definition.min[0] - EPS || node.rowSpan < definition.min[1] - EPS) return '组件小于允许的最小尺寸';
@@ -43,12 +43,12 @@ export function placementError(node: Placement, nodes: Placement[], draft = fals
   const parent = node.parentId ? nodes.find(other => other.id === node.parentId) : undefined;
   if (node.parentId && (!parent || !isContainer(parent))) return '父级不是可用的布局容器';
   if (parent?.layout?.mode !== undefined && parent.layout.mode !== 'free') return null;
-  const size = !parent && draft ? { cols: EDIT_SPACE.width / GRID.cell, rows: EDIT_SPACE.height / GRID.cell } : contentSize(parent);
+  const size = !parent && draft ? { cols: EDIT_SPACE.width / GRID.cell, rows: EDIT_SPACE.height / GRID.cell } : contentSize(parent, grid);
   if (node.col < -EPS || node.row < -EPS || node.col + node.colSpan > size.cols + EPS || node.row + node.rowSpan > size.rows + EPS) return '组件超出了画布或父容器内容区';
   if (!draft && !parent?.layout?.overlap && nodes.some(other => other.id !== node.id && other.parentId === node.parentId && overlaps(node, other))) return '组件与同级组件重叠';
   return null;
 }
-export function validateTree(nodes: Placement[], draft = false): string | null {
+export function validateTree(nodes: Placement[], draft = false, grid: CanvasGrid = GRID): string | null {
   if (nodes.length > 300) return '单个工作区最多 300 个组件';
   const ids = new Set<string>();
   for (const node of nodes) {
@@ -65,7 +65,7 @@ export function validateTree(nodes: Placement[], draft = false): string | null {
       cursor = nodes.find(other => other.id === cursor!.parentId);
       if (!cursor) return '父容器不存在';
     }
-    const error = placementError(node, nodes, draft);
+    const error = placementError(node, nodes, draft, grid);
     if (error) return error;
   }
   return null;

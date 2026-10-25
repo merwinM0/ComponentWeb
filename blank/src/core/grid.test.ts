@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { CANVAS, GRID, LEGACY_GRID, FINE_GRID, CLASSIC_GRID, catalogueSize } from './grid';
+import { CANVAS, GRID, LEGACY_GRID, FINE_GRID, CLASSIC_GRID, LARGE_GRID, catalogueSize } from './grid';
 import { canPlace, createNode, initialDocument, parseDocument } from './model';
 import { registry } from '../components/registry';
 
@@ -12,11 +12,11 @@ function oldDocument(version: 1 | 2 | 3) {
   }] };
 }
 
-describe('桌面大画布、12px 网格与历史迁移', () => {
-  test('画布保持 4:3 等比扩大为 3840×2880，100% 的网格步长不变', () => {
-    expect(CANVAS).toEqual({ width: 3840, height: 2880 }); expect(GRID).toEqual({ cols: 320, rows: 240, cell: 12 });
+describe('桌面横屏比例、12px 网格与历史迁移', () => {
+  test('默认画布为适度的 16:9 基准，网格步长不变', () => {
+    expect(CANVAS).toEqual({ width: 1344, height: 756 }); expect(GRID).toEqual({ cols: 112, rows: 63, cell: 12 });
     expect(GRID.cols * GRID.cell).toBe(CANVAS.width); expect(GRID.rows * GRID.cell).toBe(CANVAS.height);
-    expect(CANVAS.width / CANVAS.height).toBe(CLASSIC_GRID.cols / CLASSIC_GRID.rows);
+    expect(CANVAS.width / CANVAS.height).toBe(16 / 9);
     expect(catalogueSize([12, 8])).toEqual([24, 16]);
   });
   test('扩大只增加边界，默认组件位置、尺寸和最小物理尺寸不变', () => {
@@ -30,9 +30,9 @@ describe('桌面大画布、12px 网格与历史迁移', () => {
     expect((b.col - a.colSpan) * GRID.cell).toBe(12); expect(canPlace(b, [a])).toBe(true);
     expect(canPlace({ ...b, col: a.colSpan - 1 }, [a])).toBe(false);
   });
-  for (const version of [1, 2, 3] as const) test(`v${version} 迁移为 v4，保留精确像素几何和样式`, () => {
+  for (const version of [1, 2, 3] as const) test(`v${version} 迁移为 v5，保留精确像素几何和样式`, () => {
     const old = oldDocument(version); const migrated = parseDocument(JSON.stringify(old));
-    expect(migrated.schemaVersion).toBe(4); expect(migrated.grid).toEqual(GRID); expect(migrated.appearance).toEqual(old.appearance);
+    expect(migrated.schemaVersion).toBe(5); expect(migrated.grid).toEqual(GRID); expect(migrated.appearance).toEqual(old.appearance);
     expect(migrated.nodes[0].props).toEqual(old.nodes[0].props); expect(migrated.nodes[0].parentId).toBeNull();
     for (const key of ['col', 'row', 'colSpan', 'rowSpan'] as const) expect(migrated.nodes[0][key] * GRID.cell).toBeCloseTo(old.nodes[0][key] * old.grid.cell);
     expect(parseDocument(JSON.stringify(migrated))).toEqual(migrated);
@@ -42,17 +42,28 @@ describe('桌面大画布、12px 网格与历史迁移', () => {
     const child = { ...createNode('basic.button'), parentId: root.id, col: 1.5, row: 2.25, elements: [{ path: [0, 0], tag: 'span', text: '旧标签', style: { color: '#123456' } }], surface: { baseWidth: 168, baseHeight: 48, x: 0, y: 0, width: 168, height: 48 } };
     const doc = parseDocument(JSON.stringify({ ...initialDocument(), nodes: [root, child] }));
     const migrated = parseDocument(JSON.stringify({ ...doc, schemaVersion: 3, grid: CLASSIC_GRID }));
-    expect(migrated.nodes).toEqual(doc.nodes); expect(migrated.appearance).toEqual(doc.appearance); expect(migrated.schemaVersion).toBe(4);
+    expect(migrated.nodes).toEqual(doc.nodes); expect(migrated.appearance).toEqual(doc.appearance); expect(migrated.schemaVersion).toBe(5);
     expect(parseDocument(JSON.stringify(migrated))).toEqual(migrated);
   });
-  test('新增区域及新画布边缘能真正放置和保存组件，边界外仍拒绝', () => {
-    const node = { ...createNode('basic.button'), col: 120, row: 100 };
+  test('16:9 画布的真实边缘可放置和保存，边界外仍拒绝', () => {
+    const node = { ...createNode('basic.button'), col: 90, row: 50 };
     expect(canPlace(node, [])).toBe(true);
     const edge = { ...node, col: GRID.cols - node.colSpan, row: GRID.rows - node.rowSpan };
     expect(canPlace(edge, [])).toBe(true); expect(canPlace({ ...edge, col: edge.col + 1 }, [])).toBe(false);
     const doc = { ...initialDocument(), nodes: [edge] }; expect(parseDocument(JSON.stringify(doc))).toEqual(doc);
   });
-  test('扩大的新画布不能掩盖原本已越界的旧存档', () => {
+  test('v4 普通旧布局恢复 16:9，不沿用错误的超大像素范围', () => {
+    const doc = initialDocument(), old = { ...doc, schemaVersion: 4, grid: LARGE_GRID };
+    const migrated = parseDocument(JSON.stringify(old)); expect(migrated.grid).toEqual(GRID); expect(migrated.nodes).toEqual(doc.nodes);
+  });
+  test('v4 远处内容保留原范围和像素数据，不裁剪、不压缩节点', () => {
+    const node = { ...createNode('basic.button'), col: 250, row: 150 };
+    const migrated = parseDocument(JSON.stringify({ ...initialDocument(), schemaVersion: 4, grid: LARGE_GRID, nodes: [node] }));
+    expect(migrated.grid).toEqual(LARGE_GRID); expect(migrated.nodes[0]).toEqual(node);
+    expect(migrated.nodes[0]).toMatchObject({ id: node.id, col: 250, row: 150, colSpan: node.colSpan, rowSpan: node.rowSpan });
+    expect(canPlace(node, [], LARGE_GRID)).toBe(true); expect(canPlace(node, [])).toBe(false);
+  });
+  test('新画布不能掩盖原本已越界的旧存档', () => {
     for (const version of [1, 2, 3] as const) {
       const old = oldDocument(version); old.nodes[0].col = old.grid.cols - old.nodes[0].colSpan + 1;
       expect(() => parseDocument(JSON.stringify(old))).toThrow();

@@ -57,7 +57,8 @@ async function checkWorkflow(source: Page) {
     const address = page.url(); await page.reload(); assert(page.url() === address && await page.locator('#project-name').textContent() === second.name, '刷新布局地址仍进入同一布局');
 
     await page.locator(`.layer-item[data-id="${secondNode}"]`).click(); await page.keyboard.press('Shift+F10'); await page.getByRole('menuitem', { name: '编辑组件', exact: true }).click();
-    await change(page, 'prop-title', '完成组件编辑后保存'); await openRecent(page);
+    await change(page, 'prop-title', '完成组件编辑后保存');
+    assert(await page.locator('#prop-title').inputValue() === '完成组件编辑后保存' && await page.locator('#inline-height').evaluate(element => (element as HTMLInputElement).validity.valid), `适应倍率下原生编辑基准应合法：${await page.locator('#toast').textContent()}`); await openRecent(page);
     assert(await page.locator('.recent-layout-item:enabled').count() === 0 && await page.locator('#all-layouts').isDisabled(), '组件编辑期间可查看最近列表但不能切换或返回首页');
     await page.keyboard.press('Escape'); assert(await page.locator('#recent-layout-menu').isHidden(), '禁用列表仍能通过 Escape 关闭');
     await page.locator('#home-link').click(); assert(await page.locator('#inline-editor').isVisible() && (await page.locator('#toast').textContent())?.includes('先完成'), '品牌首页入口不能绕过组件编辑门禁');

@@ -49,7 +49,7 @@ document.addEventListener('pointerdown', event => { if (!(event.target as HTMLEl
 $('undo').addEventListener('click', () => { cancelInteractions(); store.undo(); });
 $('redo').addEventListener('click', () => { cancelInteractions(); store.redo(); });
 $('preview').addEventListener('click', () => { if (session.current) return; cancelInteractions(); contextMenu.close(); editor.setPreview(); panels.refresh(); });
-$('zoom').addEventListener('change', event => { cancelInteractions(); editor.setZoom(Number((event.target as HTMLSelectElement).value)); });
+$('zoom').addEventListener('change', event => { cancelInteractions(); const value = (event.target as HTMLSelectElement).value; if (value === 'fit') editor.fitCanvas(); else editor.setZoom(Number(value), false); });
 
 document.addEventListener('keydown', event => {
   if (layoutWorkspace.isHome || event.defaultPrevented || document.querySelector('dialog[open]')) return;

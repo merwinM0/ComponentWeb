@@ -1,5 +1,5 @@
 import type { Props } from '../components/contract';
-import { GRID } from './grid';
+import type { CanvasGrid } from './grid';
 import type { ElementEdit, NativeSurface } from './element-edits';
 export interface ContainerLayout {
   mode: 'free' | 'flex' | 'grid';
@@ -30,10 +30,10 @@ export interface Placement {
   surface?: NativeSurface;
 }
 export const DEFAULT_APPEARANCE = { background: '#0c1520', grid: '#82c4ed' };
-export const DOCUMENT_VERSION = 4 as const;
+export const DOCUMENT_VERSION = 5 as const;
 export interface Document {
   schemaVersion: typeof DOCUMENT_VERSION;
-  grid: typeof GRID;
+  grid: CanvasGrid;
   appearance: typeof DEFAULT_APPEARANCE;
   nodes: Placement[];
 }

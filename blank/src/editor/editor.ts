@@ -1,5 +1,6 @@
 import { createNode, findSpace, GRID, parseDocument, type Document, type Placement } from '../core/model';
-import { CANVAS } from '../core/grid';
+import { CANVAS, canvasSize, matchesGrid } from '../core/grid';
+import { fitCanvasScale } from '../core/canvas-view';
 import { ThemePreferences } from '../core/theme';
 import { applyGridAppearance } from './theme';
 import type { InlineEdit } from '../core/inline-edit';
@@ -21,6 +22,7 @@ export class Editor {
   preview = false;
   active = true;
   zoom = 1;
+  fitView = true;
   readonly canvas = $('canvas');
   readonly ghost = $('ghost');
   readonly renderer: CanvasRenderer;
@@ -43,7 +45,7 @@ export class Editor {
     this.renderer = new CanvasRenderer(this.canvas, id => { if (!this.preview && !this.selectedIds.has(id)) this.select(id); });
     Object.assign(this.canvas.style, { width: `${CANVAS.width}px`, height: `${CANVAS.height}px` });
     this.canvas.style.setProperty('--grid-cell', `${GRID.cell}px`); this.canvas.style.setProperty('--grid-major', '48px');
-    $('grid-cell-label').textContent = `${GRID.cell} px 网格`; $('canvas-size-label').textContent = `${CANVAS.width} × ${CANVAS.height} px`;
+    $('grid-cell-label').textContent = `${GRID.cell} px 网格`;
     this.setZoom(1);
     let appearanceContext = store.contextToken ?? store, documentAppearance = JSON.stringify(store.doc.appearance);
     store.subscribe(() => {
@@ -56,11 +58,14 @@ export class Editor {
     });
     this.preferences.subscribe(() => { this.applyAppearance(this.appearance); this.onSelection(); });
     this.canvas.addEventListener('component-action', event => toast(String((event as CustomEvent).detail || '操作已触发')));
+    const refit = () => { if (this.active && this.fitView && !this.session?.current) this.fitCanvas(); };
+    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(refit).observe($('viewport'));
+    else window.addEventListener('resize', refit);
     this.render();
   }
   get scopeRootId() { return this.session?.rootId ?? null; }
   get scopeRoot() { return this.store.doc.nodes.find(node => node.id === this.scopeRootId); }
-  get pageSize() { return this.session?.pageSize ?? CANVAS; }
+  get pageSize() { return this.session?.pageSize ?? canvasSize(this.store.doc.grid); }
   hitNode(target: HTMLElement, deep = false) { return hitNode(this, target, deep); }
   pageError(nodes: Placement[]): string | null {
     if (!this.scopeRootId) return null;
@@ -104,7 +109,8 @@ export class Editor {
     const context = this.store.contextToken ?? this.store;
     if (this.lastScope !== this.scopeRootId || this.lastContext !== context) { this.renderer.clear(); this.selectedTag = null; this.lastScope = this.scopeRootId; this.lastContext = context; }
     const size = this.pageSize; Object.assign(this.canvas.style, { width: `${size.width}px`, height: `${size.height}px` });
-    this.setZoom(this.zoom);
+    if (this.fitView && !this.session?.current) this.fitCanvas(); else this.setZoom(this.zoom);
+    $('canvas-size-label').textContent = this.session?.current ? '原位编辑' : matchesGrid(this.store.doc.grid, GRID) ? '16:9 横屏' : '旧画布兼容';
     this.colorPreviewId = null; this.applyAppearance(this.appearance);
     this.selectedIds = new Set([...this.selectedIds].filter(id => this.store.doc.nodes.some(node => node.id === id)));
     if (this.selectedTag && (!this.selectedIds.has(this.selectedTag.id) || !this.store.doc.nodes.some(node => node.id === this.selectedTag!.id && !isContainer(node)))) this.selectedTag = null;
@@ -140,7 +146,7 @@ export class Editor {
     if (this.preview) return;
     const target = parentId ?? (this.scopeRoot && isContainer(this.scopeRoot) ? this.scopeRootId : null);
     const created = createNode(type), position = this.scopeRootId ? this.stagingPosition(created, target) : undefined;
-    const node = placement ? { ...placement, parentId: placement.parentId ?? target } : this.scopeRootId ? position && { ...created, parentId: target, ...position } : findSpace({ ...created, parentId: target }, this.store.doc.nodes);
+    const node = placement ? { ...placement, parentId: placement.parentId ?? target } : this.scopeRootId ? position && { ...created, parentId: target, ...position } : findSpace({ ...created, parentId: target }, this.store.doc.nodes, this.store.doc.grid);
     if (!node) { toast(this.scopeRootId ? '组件放不进当前编辑框，请先扩大被编辑组件' : '没有可用空间，可调整容器尺寸或使用自动布局'); return; }
     this.commit([...this.store.doc.nodes, node], [node.id]);
   }
@@ -172,7 +178,7 @@ export class Editor {
       if (this.scopeRootId && copies.roots.length === 1 && roots[0].id === this.scopeRootId) { const size = workingSize(roots[0]); const copy = copies.nodes.find(node => node.id === copies.roots[0])!; copy.colSpan = size.width / GRID.cell; copy.rowSpan = size.height / GRID.cell; }
       const position = this.scopeRootId ? this.stagingPosition(bounds(copies.nodes.filter(node => copies.roots.includes(node.id))), target) : undefined;
       if (this.scopeRootId && !position) throw new Error('副本放不进编辑框，请先扩大组件');
-      this.commit([...this.store.doc.nodes, ...placeForest(copies.nodes, copies.roots, this.store.doc.nodes, target, position)], copies.roots);
+      this.commit([...this.store.doc.nodes, ...placeForest(copies.nodes, copies.roots, this.store.doc.nodes, target, position, this.store.doc.grid)], copies.roots);
     } catch (error) { toast((error as Error).message); }
   }
   insertSnapshot(snapshot: Document, parentId: string | null = null, position?: { col: number; row: number }) {
@@ -181,7 +187,7 @@ export class Editor {
       const target = parentId ?? (this.scopeRoot && isContainer(this.scopeRoot) ? this.scopeRootId : null);
       const placed = position ?? (this.scopeRootId ? this.stagingPosition(bounds(copies.nodes.filter(node => copies.roots.includes(node.id))), target) : undefined);
       if (this.scopeRootId && !placed) throw new Error('组合放不进编辑框，请先扩大组件');
-      this.commit([...this.store.doc.nodes, ...placeForest(copies.nodes, copies.roots, this.store.doc.nodes, target, placed)], copies.roots);
+      this.commit([...this.store.doc.nodes, ...placeForest(copies.nodes, copies.roots, this.store.doc.nodes, target, placed, this.store.doc.grid)], copies.roots);
     } catch (error) { toast((error as Error).message); }
   }
   logicalRect(id: string) { return logicalRect(this, id); }
@@ -222,9 +228,17 @@ export class Editor {
     const before = step < 0 ? siblings[Math.max(0, index - 1)]?.id ?? null : siblings[index + roots.length + 1]?.id ?? null;
     this.commit(reorderNodes(this.store.doc.nodes, this.selectedIds, before));
   }
-  setZoom(value: number) {
-    this.zoom = value; this.renderer.zoom = value; this.contextRenderer.zoom = value; this.canvas.style.transform = `scale(${value})`;
-    $('canvas-shell').style.width = `${this.pageSize.width * value}px`; $('canvas-shell').style.height = `${this.pageSize.height * value}px`;
+  fitCanvas() {
+    const viewport = $('viewport'), scale = fitCanvasScale(viewport.clientWidth, viewport.clientHeight, this.pageSize);
+    if (scale !== null) this.setZoom(scale, true);
+  }
+  setZoom(value: number, fitting = this.fitView) {
+    this.fitView = fitting; this.zoom = value; this.renderer.zoom = value; this.contextRenderer.zoom = value; this.canvas.style.transform = `scale(${value})`;
+    const size = this.pageSize; $('canvas-shell').style.width = `${size.width * value}px`; $('canvas-shell').style.height = `${size.height * value}px`;
+    $('viewport').classList.toggle('fit-view', fitting);
+    $<HTMLSelectElement>('zoom').value = fitting ? 'fit' : String(value);
+    $<HTMLOptionElement>('zoom-fit').textContent = fitting ? `适应（${Math.round(value * 100)}%）` : '适应工作区';
+    $('canvas-size-label').title = `逻辑尺寸 ${size.width} × ${size.height} px；显示 ${Math.round(value * 100)}%`;
   }
   setPreview() {
     this.preview = !this.preview; document.body.classList.toggle('preview', this.preview);
