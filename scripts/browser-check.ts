@@ -3,6 +3,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { components } from '../blank/src/components/registry';
 import { initialDocument, type Document } from '../blank/src/core/model';
 import { STORAGE_KEY } from '../blank/src/core/store';
+import { LAYOUTS_KEY } from '../blank/src/core/layouts';
 import { checkLibraryScroll } from './library-scroll-check';
 import { checkShapeSettings } from './shape-check';
 import { checkFineGrid } from './grid-check';
@@ -10,6 +11,7 @@ import { checkWorkbench } from './workbench-check';
 import { checkNestingDrag } from './nesting-drag-check';
 import { checkInlineEditing } from './inline-edit-check';
 import { checkAssemblyRendering } from './assembly-render-check';
+import { checkLayoutLibrary } from './layout-library-check';
 
 const port = 3107;
 const url = `http://127.0.0.1:${port}`;
@@ -24,7 +26,7 @@ async function seed(doc: Document) {
   // 先卸载有未保存历史的页面，避免 pagehide 覆盖下一份测试夹具。
   await page.reload();
   await page.locator('#library-count').filter({ hasText: String(components.length) }).waitFor();
-  await page.evaluate(({ key, doc }) => localStorage.setItem(key, JSON.stringify(doc)), { key: STORAGE_KEY, doc });
+  await page.evaluate(({ key, layoutsKey, doc }) => { localStorage.removeItem(layoutsKey); localStorage.setItem(key, JSON.stringify(doc)); }, { key: STORAGE_KEY, layoutsKey: LAYOUTS_KEY, doc });
   await page.reload();
   await page.locator('#library-count').filter({ hasText: String(components.length) }).waitFor();
 }
@@ -47,6 +49,7 @@ try {
   await checkWorkbench(page);
   await checkInlineEditing(page);
   await checkAssemblyRendering(page);
+  await checkLayoutLibrary(page);
   await audit(page, '初始工作台');
   await page.getByRole('button', { name: 'HTML 标签', exact: true }).click();
   assert(await page.locator('.component-tile').count() === components.filter(item => item.type.startsWith('html.')).length, 'HTML 分类计数');

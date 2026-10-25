@@ -1,4 +1,6 @@
-import { Store, loadDocument, saveDocument } from './core/store';
+import { Store } from './core/store';
+import { Layouts } from './core/layouts';
+import { setupLayoutWorkspace } from './editor/layout-workspace';
 import { Combinations } from './core/combinations';
 import { StoreRouter } from './core/store-router';
 import { InlineEdit } from './core/inline-edit';
@@ -11,9 +13,8 @@ import { setupCombinationDialogs } from './editor/combination-dialogs';
 import { setupContextMenu } from './editor/context-menu';
 import { actionButton, selectionActions } from './editor/selection-actions';
 
-const loaded = loadDocument();
-const workspaceStore = new Store(loaded.doc);
-const store = new StoreRouter(workspaceStore);
+const layouts = new Layouts();
+const store = new StoreRouter(new Store(layouts.current.document));
 const session = new InlineEdit(store);
 const combinations = new Combinations();
 const editor = new Editor(store, session);
@@ -24,6 +25,7 @@ const cancelInteractions = () => { elements.cancel(); gestures.cancel(); };
 const panels = setupPanels(editor, combinations, dialogs);
 const contextMenu = setupContextMenu(editor, combinations, dialogs, cancelInteractions);
 const inlineEditor = setupInlineEditing(editor, session, combinations, dialogs, () => { cancelInteractions(); contextMenu.close(); }, panels.refresh);
+const layoutWorkspace = setupLayoutWorkspace(editor, store, layouts, () => inlineEditor.finish(), () => { cancelInteractions(); contextMenu.close(); }, panels.refresh);
 const updateInspector = editor.onSelection;
 function updateCommands() {
   const target = $('arrange-actions'); target.replaceChildren();
@@ -33,22 +35,13 @@ function updateCommands() {
   $<HTMLButtonElement>('new-container').disabled = editor.preview;
   $<HTMLButtonElement>('select-all').disabled = editor.preview;
 }
-editor.onSelection = () => { updateInspector(); updateCommands(); inlineEditor.render(); elements.render(); };
+editor.onSelection = () => { updateInspector(); updateCommands(); inlineEditor.render(); elements.render(); layoutWorkspace.render(); };
 updateCommands();
 $('select-all').addEventListener('click', () => editor.selectAll(editor.selection[0]?.parentId ?? null));
 $('group-selection').addEventListener('click', () => editor.group());
 $('save-combination').addEventListener('click', () => editor.onSaveCombination());
 document.addEventListener('pointerdown', event => { if (!(event.target as HTMLElement).closest('.arrange-dropdown')) document.querySelector<HTMLDetailsElement>('.arrange-dropdown')!.open = false; });
 
-let saveTimer: ReturnType<typeof setTimeout>;
-function save(manual = false) {
-  if (manual && session.current) { inlineEditor.finish(); return; }
-  clearTimeout(saveTimer); const ok = saveDocument(workspaceStore.doc);
-  if (!session.current) $('save-state').textContent = ok ? '✓ 已保存到本地' : '⚠ 保存失败';
-  if (manual || !ok) toast(ok ? '布局已保存到当前浏览器' : '本地保存失败：请检查浏览器存储权限或可用空间');
-}
-workspaceStore.subscribe(() => { if (!session.current) $('save-state').textContent = '正在保存…'; clearTimeout(saveTimer); saveTimer = setTimeout(() => save(), 350); });
-$('save').addEventListener('click', () => save(true));
 $('undo').addEventListener('click', () => { cancelInteractions(); store.undo(); });
 $('redo').addEventListener('click', () => { cancelInteractions(); store.redo(); });
 $('preview').addEventListener('click', () => { if (session.current) return; cancelInteractions(); contextMenu.close(); editor.setPreview(); panels.refresh(); });
@@ -58,13 +51,13 @@ document.addEventListener('keydown', event => {
   if (event.defaultPrevented || document.querySelector('dialog[open]')) return;
   const typing = event.composedPath().some(target => target instanceof HTMLElement && (target.matches('input,textarea,select') || target.isContentEditable));
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's' && !event.shiftKey && session.current && !editor.preview) {
-    event.preventDefault(); (document.activeElement as HTMLElement)?.blur(); save(true); return;
+    event.preventDefault(); (document.activeElement as HTMLElement)?.blur(); layoutWorkspace.save(true); return;
   }
   if (typing || editor.preview) return;
   if (event.key === 'Escape') { cancelInteractions(); editor.select(null); return; }
   const modifier = event.ctrlKey || event.metaKey;
   const key = event.key.toLowerCase();
-  if (modifier && key === 's') { event.preventDefault(); event.shiftKey ? editor.onSaveCombination() : save(true); return; }
+  if (modifier && key === 's') { event.preventDefault(); event.shiftKey ? editor.onSaveCombination() : layoutWorkspace.save(true); return; }
   if (modifier && key === 'z') { event.preventDefault(); cancelInteractions(); event.shiftKey ? store.redo() : store.undo(); return; }
   if (modifier && key === 'y') { event.preventDefault(); cancelInteractions(); store.redo(); return; }
   if (modifier && key === 'd') { event.preventDefault(); cancelInteractions(); editor.duplicate(); return; }
@@ -83,7 +76,5 @@ document.addEventListener('keydown', event => {
     else { const step = event.shiftKey ? 5 : 1; editor.move(delta[0] * step, delta[1] * step); }
   }
 });
-window.addEventListener('pagehide', () => { clearTimeout(saveTimer); if (workspaceStore.canUndo || workspaceStore.canRedo) saveDocument(workspaceStore.doc); });
-if (loaded.warning || combinations.warning) toast(loaded.warning || combinations.warning);
-else $('save-state').textContent = '✓ 本地工作区已就绪';
+if (layouts.warning || combinations.warning) toast(layouts.warning || combinations.warning);
 if (window.matchMedia('(max-width: 800px)').matches) document.querySelector<HTMLDetailsElement>('.inspector details')!.open = false;
