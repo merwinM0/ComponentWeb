@@ -3,89 +3,115 @@ import AxeBuilder from '@axe-core/playwright';
 import { initialDocument, createNode } from '../blank/src/core/model';
 import { LAYOUTS_KEY, type SavedLayout } from '../blank/src/core/layouts';
 import { layoutHash } from '../blank/src/core/layout-route';
-import { HOME_MOTION_KEY } from '../blank/src/editor/home-motion';
+import { HOME_INTERACTION_KEY } from '../blank/src/editor/home-interaction';
 const assert = (value: unknown, label: string) => { if (!value) throw new Error(label); };
 const origin = (page: Page) => { const url = new URL(page.url()); url.hash = ''; return url.href; };
 const names = ['产品首页', '商品详情', '个人中心', '登录页面', '活动专题', '设置页面', '移动端首页', '数据概览'];
 const layouts: SavedLayout[] = names.map((name, index) => ({ id: `appearance-${index}`, name, createdAt: '2025-01-01T00:00:00.000Z', updatedAt: new Date(Date.UTC(2025, 0, index + 1)).toISOString(), document: { ...initialDocument(), nodes: [{ ...createNode('basic.button'), id: `appearance-node-${index}` }] } }));
 async function audit(page: Page, label: string) { const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze(); assert(!result.violations.length, `${label} 无障碍：${JSON.stringify(result.violations.map(item => item.id))}`); }
-async function clickable(page: Page, id: string) {
-  assert(await page.locator(`#${id}`).evaluate(element => { const box = element.getBoundingClientRect(); return element.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)); }), `${id} 不被装饰层遮挡`);
-}
+async function clickable(page: Page, id: string) { assert(await page.locator(`#${id}`).evaluate(element => { const box = element.getBoundingClientRect(); return element.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)); }), `${id} 不被交互装饰层遮挡`); }
 async function frames(page: Page) { await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))); }
+async function idle(page: Page) { await page.mouse.move(4, 4); await page.waitForFunction(() => document.getElementById('home-hero')!.dataset.motion === 'idle'); await page.waitForTimeout(260); }
 
-export async function checkHomeAppearance(source: Page) {
+async function checkPointer(source: Page) {
   const browser = source.context().browser()!, context = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'no-preference' });
   await context.addInitScript(({ key, layouts }) => { if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify({ schemaVersion: 1, items: layouts })); }, { key: LAYOUTS_KEY, layouts });
   const page = await context.newPage(), errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   try {
-    await page.goto(origin(source)); await page.locator('.layout-item').first().waitFor();
-    const hero = page.locator('#home-hero'); await page.waitForFunction(() => document.getElementById('home-hero')!.dataset.motion === 'running');
-    assert(await page.locator('#home-heading').evaluate(element => parseFloat(getComputedStyle(element).fontSize) >= 48 && getComputedStyle(element.parentElement!).textAlign === 'center'), '首页居中大标题清晰突出');
-    assert(await page.locator('#hero-latest-name').textContent() === '数据概览', '首页快捷入口显示最近修改的布局名称');
-    const first = (await page.locator('.layout-item').first().boundingBox())!; assert(first.y + first.height <= 900, '桌面首屏能完整看到第一份布局，不被主视觉挤出');
-    await clickable(page, 'hero-new-layout'); await clickable(page, 'continue-layout'); await clickable(page, 'toggle-home-motion');
-    assert(await hero.evaluate(element => element.getAnimations({ subtree: true }).some(animation => animation.playState === 'running' && animation.effect?.getTiming().iterations === Infinity)), '装饰网格与组件有轻量动态效果');
-    const saved = await page.evaluate(key => localStorage.getItem(key), LAYOUTS_KEY);
+    await page.goto(origin(source)); await page.locator('.layout-item').first().waitFor(); await idle(page);
+    const hero = page.locator('#home-hero');
+    assert(await page.locator('#home-heading').evaluate(element => parseFloat(getComputedStyle(element).fontSize) >= 48 && getComputedStyle(element.parentElement!).textAlign === 'center'), '首页保持居中大标题');
+    assert(await page.locator('#hero-latest-name').textContent() === '数据概览', '快捷继续指向最近修改的布局');
+    assert(await hero.evaluate(element => element.getAnimations({ subtree: true }).length === 0), '没有输入时完全静止，没有自动漂浮、扫描或入场动画');
+    const idleFrames = await page.evaluate(() => new Promise<number>(resolve => { const original = requestAnimationFrame; let count = 0; window.requestAnimationFrame = callback => { count++; return original.call(window, callback); }; setTimeout(() => { window.requestAnimationFrame = original; resolve(count); }, 250); }));
+    assert(idleFrames === 0, '空闲时不安排渲染帧');
+    const baseTransform = await page.locator('.hero-piece-card').evaluate(element => getComputedStyle(element).transform);
+    const before = await page.evaluate(key => localStorage.getItem(key), LAYOUTS_KEY), title = (await page.locator('#home-heading').boundingBox())!, action = (await page.locator('#hero-new-layout').boundingBox())!;
+    const box = (await hero.boundingBox())!;
+    await page.mouse.move(box.x + 100, box.y + 120); await page.waitForFunction(() => document.getElementById('home-hero')!.dataset.motion === 'interacting'); await frames(page);
+    const firstX = await hero.evaluate(element => (element as HTMLElement).style.getPropertyValue('--pointer-x'));
+    await page.mouse.move(box.x + box.width - 90, box.y + box.height - 60); await page.waitForTimeout(230);
+    assert(await hero.evaluate(element => (element as HTMLElement).style.getPropertyValue('--pointer-x')) !== firstX, '网格光照跟随鼠标位置');
+    assert(await page.locator('.hero-piece-card').evaluate(element => getComputedStyle(element).transform) !== baseTransform, '组件预览响应指针偏转');
+    const afterTitle = (await page.locator('#home-heading').boundingBox())!, afterAction = (await page.locator('#hero-new-layout').boundingBox())!;
+    assert(Math.abs(title.x - afterTitle.x) < .1 && Math.abs(title.y - afterTitle.y) < .1 && Math.abs(action.x - afterAction.x) < .1 && Math.abs(action.y - afterAction.y) < .1, '标题与主按钮不会跟随鼠标移动');
+    await clickable(page, 'hero-new-layout'); await clickable(page, 'continue-layout'); await clickable(page, 'toggle-home-interaction');
+    const scheduled = await page.evaluate(() => {
+      const root = document.getElementById('home-hero')!, box = root.getBoundingClientRect(), original = requestAnimationFrame; let count = 0;
+      window.requestAnimationFrame = callback => { count++; return original.call(window, callback); };
+      for (let i = 0; i < 100; i++) root.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerType: 'mouse', clientX: box.x + 40 + i, clientY: box.y + 100 }));
+      window.requestAnimationFrame = original; return count;
+    });
+    assert(scheduled === 1, '一批鼠标移动只安排一次渲染帧，不启动持续循环'); await frames(page);
+    await page.mouse.move(box.x + 60, box.y + box.height - 28); await page.mouse.down(); await page.mouse.up();
+    assert(await page.locator('#hero-pulse').evaluate(element => element.getAnimations().some(animation => animation.playState === 'running' && animation.effect?.getTiming().iterations === 1)), '点击空白区域产生一次短暂选框反馈');
+    await idle(page);
+    assert(await page.locator('.hero-spotlight').evaluate(element => getComputedStyle(element).opacity === '0') && await hero.evaluate(element => element.getAnimations({ subtree: true }).length === 0), '移开指针后归位并停止动画');
+    const row = page.locator('.layout-item').first(), rowBox = (await row.boundingBox())!;
+    await page.mouse.move(rowBox.x + 60, rowBox.y + 24); await page.waitForFunction(() => !!document.querySelector('.layout-item[data-pointer="true"]'));
+    const rowX = await row.evaluate(element => (element as HTMLElement).style.getPropertyValue('--row-x'));
+    await page.mouse.move(rowBox.x + 260, rowBox.y + 24); await frames(page);
+    assert(await row.evaluate(element => (element as HTMLElement).style.getPropertyValue('--row-x')) !== rowX, '布局行高亮也随鼠标移动，列表本身保持不动');
+    await idle(page); await page.screenshot({ path: '/tmp/componentweb-home-interaction-idle.png' });
+    await page.mouse.move(box.x + 105, box.y + 170); await page.waitForTimeout(230); await page.screenshot({ path: '/tmp/componentweb-home-interaction.png' }); await audit(page, '交互首页');
     await page.locator('#jump-to-layouts').focus(); await page.keyboard.press('Tab');
-    assert(await page.locator('#toggle-home-motion').evaluate(element => element === document.activeElement), '动效开关能在主要入口之后顺序用键盘到达');
-    await page.keyboard.press('Space');
-    assert(await hero.getAttribute('data-motion') === 'paused' && await page.locator('#toggle-home-motion').getAttribute('aria-pressed') === 'false', '用户可明确暂停动效');
-    assert(await hero.evaluate(element => element.getAnimations({ subtree: true }).filter(animation => animation.effect?.getTiming().iterations === Infinity).every(animation => animation.playState !== 'running')), '暂停后没有仍在运行的循环装饰动画');
-    assert(await page.evaluate(key => localStorage.getItem(key), HOME_MOTION_KEY) === 'paused', '只保存独立的动效偏好');
-    await page.reload(); await page.locator('.layout-item').first().waitFor();
-    assert(await hero.getAttribute('data-motion') === 'paused', '手动暂停偏好跨刷新保留');
-    await page.locator('#toggle-home-motion').click(); await page.waitForFunction(() => document.getElementById('home-hero')!.dataset.motion === 'running');
-    assert(await page.evaluate(key => localStorage.getItem(key), LAYOUTS_KEY) === saved, '动效开关不改变布局或最近修改时间');
+    assert(await page.locator('#toggle-home-interaction').evaluate(element => element === document.activeElement), '交互开关可以顺序用键盘到达');
+    await page.keyboard.press('Space'); assert(await hero.getAttribute('data-motion') === 'paused', '用户可以关闭交互增强');
+    assert(await page.evaluate(key => localStorage.getItem(key), HOME_INTERACTION_KEY) === 'paused', '沿用原先的关闭偏好，不重置用户选择');
+    await page.reload(); await page.locator('.layout-item').first().waitFor(); assert(await hero.getAttribute('data-motion') === 'paused', '关闭偏好跨刷新保留');
+    await page.locator('#toggle-home-interaction').click(); await idle(page);
     await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, value: true }); document.dispatchEvent(new Event('visibilitychange')); });
-    assert(await hero.getAttribute('data-motion') === 'paused', '标签页进入后台时停止装饰动画');
-    await page.evaluate(() => { Reflect.deleteProperty(document, 'hidden'); document.dispatchEvent(new Event('visibilitychange')); });
-    await page.waitForFunction(() => document.getElementById('home-hero')!.dataset.motion === 'running');
-    await page.locator('#hero-new-layout').click(); assert(await page.locator('#layout-form').isVisible() && await hero.getAttribute('data-motion') === 'paused', '大标题区新建入口可用，弹窗期间自动暂停装饰');
-    await page.locator('#layout-form [data-cancel]').click(); await page.waitForFunction(() => document.getElementById('home-hero')!.dataset.motion === 'running');
+    assert(await hero.getAttribute('data-motion') === 'paused', '后台停止响应并清理交互状态');
+    await page.evaluate(() => { Reflect.deleteProperty(document, 'hidden'); document.dispatchEvent(new Event('visibilitychange')); }); await idle(page);
+    await page.locator('#hero-new-layout').click(); assert(await page.locator('#layout-form').isVisible() && await hero.getAttribute('data-motion') === 'paused', '新建弹窗不被交互层拦截，背景停止响应');
+    await page.locator('#layout-form [data-cancel]').click(); await idle(page);
+    assert(await page.evaluate(key => localStorage.getItem(key), LAYOUTS_KEY) === before, '指针、点击、交互开关和浏览不会改写布局或修改时间');
     await page.setViewportSize({ width: 1440, height: 700 }); await frames(page);
-    const compact = (await page.locator('.layout-item').first().boundingBox())!; assert(compact.y + compact.height <= 700, '矮屏压缩介绍区，第一份布局仍在首屏完整可见');
-    await page.locator('#jump-to-layouts').click();
-    assert(await page.locator('#layout-search').evaluate(element => element === document.activeElement) && new URL(page.url()).hash === '', '一键定位布局搜索，不干扰页面路由');
+    const compact = (await page.locator('.layout-item').first().boundingBox())!; assert(compact.y + compact.height <= 700, '矮屏首屏完整显示第一份布局');
+    await page.locator('#jump-to-layouts').click(); assert(await page.locator('#layout-search').evaluate(element => element === document.activeElement) && new URL(page.url()).hash === '', '一键定位搜索，不改变路由');
     await page.waitForFunction(() => document.getElementById('home-hero')!.dataset.motion === 'paused');
-    await page.evaluate(() => scrollTo(0, 0)); await page.waitForFunction(() => document.getElementById('home-hero')!.dataset.motion === 'running');
-    await page.locator('#continue-layout').click();
-    assert(new URL(page.url()).hash === layoutHash('appearance-7') && await hero.getAttribute('data-motion') === 'paused', '继续按钮准确进入最近布局，编辑时首页动画停止');
-    await page.locator('#home-link').click(); await page.waitForFunction(() => document.getElementById('home-hero')!.dataset.motion === 'running');
+    await page.evaluate(() => scrollTo(0, 0)); await idle(page); await page.locator('#continue-layout').click();
+    assert(new URL(page.url()).hash === layoutHash('appearance-7') && await hero.getAttribute('data-motion') === 'paused', '继续准确进入最近布局，并清理首页效果');
+    await page.locator('#home-link').click(); await idle(page);
     for (const width of [320, 390, 768, 1024, 1440]) {
-      const height = width <= 390 ? 844 : 900;
-      await page.setViewportSize({ width, height }); await page.evaluate(() => scrollTo(0, 0)); await frames(page);
-      assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${width}px 首页无横向溢出`);
-      const item = (await page.locator('.layout-item').first().boundingBox())!; assert(item.y + item.height <= height, `${width}px 首屏完整显示第一份布局`);
-      assert(await page.locator('#hero-new-layout').evaluate(element => element.getBoundingClientRect().height >= 44), `${width}px 主操作适合触控`);
-      await clickable(page, 'hero-new-layout'); await clickable(page, 'continue-layout');
-      if (width === 320) await page.screenshot({ path: '/tmp/componentweb-home-hero-mobile.png', fullPage: true });
+      const height = width <= 390 ? 844 : 900; await page.setViewportSize({ width, height }); await page.evaluate(() => scrollTo(0, 0)); await frames(page);
+      assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${width}px 无横向溢出`);
+      const first = (await page.locator('.layout-item').first().boundingBox())!; assert(first.y + first.height <= height, `${width}px 首屏完整显示第一份布局`);
+      assert(await page.locator('#hero-new-layout').evaluate(element => element.getBoundingClientRect().height >= 44), `${width}px 主操作适合触控`); await clickable(page, 'hero-new-layout'); await clickable(page, 'continue-layout');
+      if (width === 320) await page.screenshot({ path: '/tmp/componentweb-home-interaction-mobile.png', fullPage: true });
     }
-    await page.screenshot({ path: '/tmp/componentweb-home-hero.png' }); await audit(page, '动态首页');
     await page.emulateMedia({ reducedMotion: 'reduce' }); await frames(page);
-    assert(await page.locator('#toggle-home-motion').isDisabled() && await hero.getAttribute('data-motion') === 'paused', '系统减少动态设置即时生效');
-    assert(await hero.evaluate(element => element.getAnimations({ subtree: true }).length === 0), '减少动态模式没有隐藏的循环或入场动画');
+    assert(await page.locator('#toggle-home-interaction').isDisabled() && await hero.getAttribute('data-motion') === 'paused', '减少动态偏好即时停用增强');
+    const reducedBox = (await hero.boundingBox())!; await page.mouse.move(reducedBox.x + 80, reducedBox.y + 100); await page.mouse.down(); await page.mouse.up();
+    assert(await hero.getAttribute('data-motion') === 'paused' && await hero.evaluate(element => element.getAnimations({ subtree: true }).length === 0), '减少动态时鼠标和点击也不会触发动画');
     await page.locator('#hero-new-layout').click(); await page.locator('#layout-name').fill('静态模式创建的布局'); await page.locator('#layout-form button[type="submit"]').click();
-    assert(await page.locator('#project-name').textContent() === '静态模式创建的布局', '减少动态模式下新建与进入布局不受影响');
-    assert(!errors.length, errors.join('; '));
+    assert(await page.locator('#project-name').textContent() === '静态模式创建的布局', '关闭效果不影响新建布局'); assert(!errors.length, errors.join('; '));
   } finally { await context.close(); }
-
-  const reducedContext = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
+}
+async function checkTouch(source: Page) {
+  const context = await source.context().browser()!.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, reducedMotion: 'no-preference' });
+  await context.addInitScript(({ key, layouts }) => { if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify({ schemaVersion: 1, items: layouts })); }, { key: LAYOUTS_KEY, layouts });
   try {
-    const reducedPage = await reducedContext.newPage(); await reducedPage.goto(origin(source)); await reducedPage.locator('.layout-item').waitFor();
-    assert(await reducedPage.locator('#home-hero').getAttribute('data-motion') === 'paused' && await reducedPage.locator('#toggle-home-motion').isDisabled(), '首次进入即尊重系统减少动态偏好');
-    await audit(reducedPage, '减少动态首页'); await reducedPage.locator('#continue-layout').click(); assert(await reducedPage.locator('#editor-page').isVisible(), '静态首页仍可一键继续布局');
-  } finally { await reducedContext.close(); }
+    const page = await context.newPage(); await page.goto(origin(source)); await page.locator('.layout-item').first().waitFor();
+    const box = (await page.locator('#home-hero').boundingBox())!; await page.touchscreen.tap(box.x + 24, box.y + box.height / 2);
+    assert(await page.locator('#hero-pulse').evaluate(element => element.getAnimations().length > 0), '触屏轻点背景也有短暂反馈');
+    await page.screenshot({ path: '/tmp/componentweb-home-interaction-touch.png' });
+    await page.waitForFunction(() => document.getElementById('home-hero')!.dataset.motion === 'idle');
+    const client = await context.newCDPSession(page), start = box.y + box.height / 2;
+    await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: box.x + 24, y: start }] });
+    for (let i = 1; i <= 8; i++) { await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: box.x + 24, y: start - i * 12 }] }); await page.waitForTimeout(20); }
+    await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); await page.waitForFunction(() => scrollY > 0);
+    await page.evaluate(() => scrollTo(0, 0)); await page.locator('#continue-layout').tap(); assert(await page.locator('#editor-page').isVisible(), '触屏滚动与打开布局不被效果接管');
+  } finally { await context.close(); }
+}
+export async function checkHomeAppearance(source: Page) {
+  await checkPointer(source); await checkTouch(source);
+  const browser = source.context().browser()!, reduced = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
+  try { const page = await reduced.newPage(); await page.goto(origin(source)); await page.locator('.layout-item').waitFor(); assert(await page.locator('#toggle-home-interaction').isDisabled(), '首次进入尊重系统减少动态'); await audit(page, '静态首页'); await page.locator('#continue-layout').click(); assert(await page.locator('#editor-page').isVisible(), '静态模式仍能继续布局'); } finally { await reduced.close(); }
   const unavailable = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'no-preference' });
   try {
-    await unavailable.addInitScript(key => {
-      const get = Storage.prototype.getItem, set = Storage.prototype.setItem;
-      Storage.prototype.getItem = function (name) { if (name === key) throw new Error('denied'); return get.call(this, name); };
-      Storage.prototype.setItem = function (name, value) { if (name === key) throw new Error('denied'); set.call(this, name, value); };
-    }, HOME_MOTION_KEY);
-    const localPage = await unavailable.newPage(); await localPage.goto(origin(source)); await localPage.locator('.layout-item').waitFor(); await localPage.locator('#toggle-home-motion').click();
-    assert(await localPage.locator('#home-hero').getAttribute('data-motion') === 'paused', '偏好存储不可用时仍能暂停');
-    await localPage.locator('#continue-layout').click(); assert(await localPage.locator('#editor-page').isVisible(), '偏好存储失败不影响布局入口');
+    await unavailable.addInitScript(key => { const get = Storage.prototype.getItem, set = Storage.prototype.setItem; Storage.prototype.getItem = function (name) { if (name === key) throw new Error('denied'); return get.call(this, name); }; Storage.prototype.setItem = function (name, value) { if (name === key) throw new Error('denied'); set.call(this, name, value); }; }, HOME_INTERACTION_KEY);
+    const page = await unavailable.newPage(); await page.goto(origin(source)); await page.locator('.layout-item').waitFor(); await page.locator('#toggle-home-interaction').click(); assert(await page.locator('#home-hero').getAttribute('data-motion') === 'paused', '偏好存储不可用时也能关闭交互'); await page.locator('#continue-layout').click(); assert(await page.locator('#editor-page').isVisible(), '偏好失败不影响布局入口');
   } finally { await unavailable.close(); }
-  console.log('首页视觉验证通过：居中标题、动态网格、首屏布局可达、双新建入口、继续最近布局、一键搜索、暂停持久化、离屏/后台停止、减少动态与无障碍。');
+  console.log('首页交互验证通过：默认静止、指针光照/网格/偏转、单次点击反馈、布局行高亮、按帧合并、触屏滚动、静态偏好、可达性与数据隔离。');
 }
